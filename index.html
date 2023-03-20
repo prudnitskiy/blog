@@ -1,0 +1,509 @@
+<!doctype html><html lang=ru-ru data-theme>
+<head>
+<meta name=generator content="Hugo 0.92.2">
+<meta charset=utf-8>
+<meta name=HandheldFriendly content="True">
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=referrer content="no-referrer-when-downgrade">
+<title>SRE Blog</title>
+<meta name=description content>
+<link rel=alternate type=application/rss+xml href=https://prudnitskiy.pro/index.xml title="SRE Blog">
+<link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico>
+<link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png>
+<link rel=stylesheet href=https://prudnitskiy.pro/css/style.min.63aba568b2393a8f5a364a508001b05c9412a603d1a0a69bd50f9944649f9c56.css integrity="sha256-Y6ulaLI5Oo9aNkpQgAGwXJQSpgPRoKab1Q+ZRGSfnFY=">
+<script src=https://prudnitskiy.pro/js/script.min.510c781c39dbb21b4c76d85c82e2bdf4689220adbb7cd61e49e9d293e442fb42.js type=text/javascript integrity="sha256-UQx4HDnbshtMdthcguK99GiSIK27fNYeSenSk+RC+0I="></script>
+<meta property="og:title" content="SRE Blog">
+<meta property="og:description" content>
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://prudnitskiy.pro/">
+<meta name=twitter:card content="summary">
+<meta name=twitter:title content="SRE Blog">
+<meta name=twitter:description content>
+</head>
+<body>
+<a class=skip-main href=#main>Skip to main content</a>
+<div class=container>
+<header class=common-header>
+<div class=header-top>
+<h1 class=site-title>
+<a href=/>SRE Blog</a>
+</h1>
+<ul class=social-icons>
+<li>
+<a href=https://github.com/prudnitskiy title=Github rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentcolor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6.0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6.0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3.0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1.0-6.2-.3-40.4-.3-61.4.0.0-70 15-84.7-29.8.0.0-11.4-29.1-27.8-36.6.0.0-22.9-15.7 1.6-15.4.0.0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5.0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9.0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4.0 33.7-.3 75.4-.3 83.6.0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6.0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9.0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+</a>
+</li>
+<li>
+<a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentcolor" d="M416 32H31.9C14.3 32 0 46.5.0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6.0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3.0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2.0 38.5 17.3 38.5 38.5.0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6.0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2.0 79.7 44.3 79.7 101.9V416z"/></svg>
+</span>
+</a>
+</li>
+</ul>
+</div>
+<nav>
+<a href=https://prudnitskiy.pro/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ title=Blog>Blog</a>
+</nav>
+</header>
+<main id=main tabindex=-1>
+<div class=homepage-content>
+</div>
+<div class="articles h-feed">
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2023-01-24-books/>Книги для инфраструктурного инженера, часть 1 - hard skills</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Должен признаться &ndash; я люблю книги. Сейчас это не модно, потому, что книги отнимают очень много времени для прочтения, а результативность под вопросом. Ту же самую информацию можно получить в Google за 5 минут поиска. Тем не менее я считаю пользу книг сильно недооцененной. Поиск в Google дает ответ на очень узкий конкретный вопрос (и ответ, часто, не оптимальный, а может и вовсе неверный). Хорошая, качественная книга дает обзор проблемы с разных точек зрения и показывает, как части связываются в единое целое.</p>
+<p>В этой статье я собрал лучшие (на мой взгляд) книги для хорошего инфраструктурного инженера (cloud engineer, system administrator, devops, site reliability engineer, как вам больше нравится). Топ получился больше, чем я планировал, потому он разделен на 2 части. В первой части будут книги по техническим знаниям, во второй - по нетехническим, но все равно важным. Я специально отсортировал книги по алфавиту по имени автора, чтобы снизить предвзятость своей оценки.</p>
+<p>Должен добавить, что я верю в <a href=https://en.wikipedia.org/wiki/Lindy_effect>эффект Линди</a> и потому не удивляйтесь, что здесь есть сравнительно не новые книги. Шанс того, что не прошедшая испытание временем книга окажется хорошей, по моему мнению - невысок.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2023-03-04</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2023-01-24-books/>https://prudnitskiy.pro/post/2023-01-24-books/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/books/>#books</a></li>
+<li><a href=https://prudnitskiy.pro/tags/general/>#general</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2022-02-16-CKA/>Как сдать экзамен Cerified Kubernetes Administrator: личный опыт</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Экзамен Kubernetes Certified Administrator (CKA) по праву считается самым сложным из &ldquo;базовых&rdquo;. Интернет буквально заполнен жалобами людей, которые заплатили 400$ за попытку и не смогли его сдать. Linux Foundation предлагает одну дополнительную попытку и тестовый вариант экзамена (аж 3 тестовых сессии). Это не помогает все равно - LFS сначала сделали упрощенный вариант CKAD (Certified Kubernetes Application Developer), а потом - еще более упрощенный CKAN. Я этот экзамен сдал. С первой попытки и на 86% (то есть я сделал одну ошибку в одном сложном вопросе). Вся подготовка заняла пол-года (на момент старта знания у меня были только теоретические). В этой статье я расскажу, как я готовился, зачем это вообще надо и на что обращать внимание.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2022-02-16</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2022-02-16-CKA/>https://prudnitskiy.pro/post/2022-02-16-CKA/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/k8s/>#k8s</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2021-01-15-k8s-pod-distribution/>Распределяем pod-ы по машинам в kubernetes</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Kubernetes иногда называют &ldquo;операционной системой для дата-центров&rdquo; &ndash; и в этом есть логика. K8s позволяет представить группу серверов (условный ЦОД) как единое вычислительное пространство. Оператор просто бросает задания в K8s, а тот сам выбирает, где тот или иной контейнер лучше разместить. Чаще всего делает это он хорошо. Но иногда появляется необходимость как-то управлять этим процессом. Об этом я и расскажу.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2021-01-15</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2021-01-15-k8s-pod-distribution/>https://prudnitskiy.pro/post/2021-01-15-k8s-pod-distribution/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/k8s/>#k8s</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2020-06-23-restic-quickstart/>Restic: backup для современного мира</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Restic - это простой, надежный, быстрый и эффективный способ резервного копирования. Простой в установке и настройке, с поддержкой большого количества бэкендов хранения, надежным шифрованием и дедупликацией. Это прекрасный инструмент для резервного копирования в современном ИТ-ландшафте. Тут я расскажу, зачем он нужен, как его поставить и начать им пользоваться.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2020-06-23</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2020-06-23-restic-quickstart/>https://prudnitskiy.pro/post/2020-06-23-restic-quickstart/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/backup/>#backup</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2019-07-24-wireguard/>WireGuard: перспективный VPN</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>VPN придуман давно (IPSec - в 1998 году, например) и имеет множество областей применения - безопасный доступ для удаленных сотрудников, прозрачное объединение корпоративных сетей, безопасный доступ в интернет поверх небезопасных каналов, даже - уклонение от корпоративной и государственной цензуры. Протоколов VPN - целый выводок, а реализации (программы, ПАК, даже чистые аппаратные решения без ПО есть) - еще больше. При этом каждый каждый стандарт имеет свои недостатки. WireGuard - это очередной протокол VPN, попытка эти проблемы решить. При всех плюсах WG (про них - ниже) - он мало известен и на удивление плохо документирован. Эта статья - попытка устранить эти недостатки.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2019-07-24</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2019-07-24-wireguard/>https://prudnitskiy.pro/post/2019-07-24-wireguard/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/vpn/>#vpn</a></li>
+<li><a href=https://prudnitskiy.pro/tags/security/>#security</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2018-12-14-cfssl/>CFSS: TLS CA со скоростью молнии</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>TLS - один из самых распространенных стандартов шифрования и аутентификации в современном интернете. Используется исключительно широко - взаимодействие с пользователем (HTTPS), межпрограммное общение (RPC over HTTPS, gRPC), даже VPN (OpenVPN) и телефония (SIPoTLS). Он обеспечивает шифрование (симметричным ключом), авторизацию (PKI), проверку целостности переданной информации (HMAC). Важная часть TLS - PKI (инфраструктура публичных ключей). Любой публичный ключ в TLS должен быть подписан (публичный ключ с подписью и набором определенных атрибутов называется сертификатом). Центр сертификации – критически важная часть работы TLS, так как он управляет доверием к приложению или сервису (цепочки доверия). В этой статье я расскажу о том, как запустить свой собственный CA на основе CFSSL. Введение получилось неожиданно большим, так что если вам нужна практика - вам сюда</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2018-12-14</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2018-12-14-cfssl/>https://prudnitskiy.pro/post/2018-12-14-cfssl/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/ssl/>#ssl</a></li>
+<li><a href=https://prudnitskiy.pro/tags/tls/>#tls</a></li>
+<li><a href=https://prudnitskiy.pro/tags/security/>#security</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2018-08-22-repmgr/>Repmgr: управление репликацией postgresql</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>PostgreSQL - это мощная и очень развитая база данных, функциональная и дружелюбная. В комплект входит надежный и очень удобный механизм потоковой репликации (я писал о нем <a href=/2018-01-05-pgsql-replica>здесь</a>). Не смотря на мощь и удобство – этот инструмент сложен в настройке и не всегда понятен, особенно, если серверов баз много. Все становится еще хуже, если у вас сложная схема репликации с каскадами (master > slave > slave of slave). Чтобы облегчить жизнь DBA в таких ситуациях – известные специалисты по консалтингу Postgres, компания 2ndQuadrant придумали repmgr – специальный инструмент для управления настройками репликации для PostgreSQL.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2018-08-22</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2018-08-22-repmgr/>https://prudnitskiy.pro/post/2018-08-22-repmgr/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/postgresql/>#postgresql</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+<li><a href=https://prudnitskiy.pro/tags/reliability/>#reliability</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2018-08-02-yubikey-gpg/>Yubikey + GPG – быстрый старт</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Требования к безопасности непрерывно растут, так как взломщики постоянно эволюционируют и все лучше умеют красть данные. Доступ к данным становится все более ценным - это могут быть живые деньги, секретная информация или доступ в инфраструктуру, интеллектуальную собственность или пользовательские данные (которые эта инфраструктура обрабатывает). А это – очень большие деньги. А иногда и вовсе вопрос жизни и смерти целой структуры.</p>
+<p>Простой системы логин/пароль уже недостаточно, чтобы обеспечить надежную защиту, и даже система с ассиметричными ключами имеет уязвимости:</p>
+<ul>
+<li>ключ можно выкрасть. Он будет шифрован, но пароль можно подобрать. Это медленный процесс, но взломщику может повезти, особенно, если у него есть какая-то информация об особенностях пароля. Например, он знает его точную длинну.</li>
+<li>Для того, чтобы ключ можно было использовать - он должен быть расшифрован. Обычно расшифрованый ключ хранится в оперативной памяти, но при наличии доступа к памяти его можно украсть. Атака сложная, но если ключ по-настоящиему ценный - реальная.</li>
+</ul>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2018-08-02</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2018-08-02-yubikey-gpg/>https://prudnitskiy.pro/post/2018-08-02-yubikey-gpg/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/linux/>#linux</a></li>
+<li><a href=https://prudnitskiy.pro/tags/security/>#security</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2018-01-24-systemd-quickstart/>Systemd – очень быстрый старт</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>При работе в операционной системе нужно постоянно запускать разные программы. Следить за их состоянием. Перезапускать упавшее. Существует целый пласт утилит, который решает эту задачу (от простейшего init.d до навороченного svc). Сейчас в Linux стандартом де-факто стал systemd – его используют все современные дистрибутивы. Это – очень короткое и очень простое введение в systemd. Минимум текста – максимум пользы.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2018-01-24</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2018-01-24-systemd-quickstart/>https://prudnitskiy.pro/post/2018-01-24-systemd-quickstart/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/linux/>#linux</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2018-01-05-pgsql-replica/>Потоковая репликация в PostgreSQL – короткое введение</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>PostgreSQL – великолепная база данных, во многом – лучше MySQL. При этом у PostgreSQL довольно мало документации (кроме официальной) – MySQL раньше стал популярен и сейчас элементарно чаще встречается. Руководств по настройке репликации в MySQL - полный интернет, а для PostgreSQL на русском я пошаговых инструкций просто не видел. Это – именно такая инструкция.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2018-01-05</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2018-01-05-pgsql-replica/>https://prudnitskiy.pro/post/2018-01-05-pgsql-replica/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/postgresql/>#postgresql</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2017-09-30-duplicity/>Duplicity – экстремально простой способ резервного копирования</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Как гласит старинная шутка, системные администраторы делятся на две группы: те, которые не делают бэкапы, и те, которые уже делают бэкапы. Систем резеревного копирования существует великое множество, от простейшего самописного скрипта до огромных монстров ценой в &ldquo;боинг&rdquo;. Все системы нужны для разных целей и выполняют разные задачи.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2017-09-30</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2017-09-30-duplicity/>https://prudnitskiy.pro/post/2017-09-30-duplicity/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/backup/>#backup</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2017-09-15-jekyll/>Как (и зачем) перевести блог на статический сайт</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Согласно <a href=https://w3techs.com/technologies/overview/programming_language/all>статстике W3Tech</a> 98.5% современных сайтов – это динамические сайты. Строго говоря – это программы (порой – большие и сложные программы), мощные многоэтажные системы, связаные со сложными системами хранения данных. Каждое посещение такого сайта – это выполнение кода, что требует ресурсов сервера и времени. При этом реально в большинстве случаев вся эта мощь не используется – большинство сайтов довольно компактные и редко обновляются. А значит – мощная, сложная, гибкая, многокомпонентная, что самое страшное – потенциально ненадежная система, в общем-то, не нужна.</p>
+<p>Перевод сайта с динамики на статику – это простой и удобный способ обойтись без сложностей, не потеряв гибкости и удобства.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2017-09-15</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2017-09-15-jekyll/>https://prudnitskiy.pro/post/2017-09-15-jekyll/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/blog/>#blog</a></li>
+<li><a href=https://prudnitskiy.pro/tags/usability/>#usability</a></li>
+<li><a href=https://prudnitskiy.pro/tags/ruby/>#ruby</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2016-04-21-xtrabackup/>Резервное копироварие mysql с помощью xtrabackup</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>MySQL - сверх-популярный сервер баз данных. Его используют (или использовали) практически все. Одна из самых популярных задач в системном администрировании - бэкап (и восстановление). Или, как подвид - миграция данных (бэкап + последующее восстановление). Это делают практически все. И практически все используют для mysql_dump, что категорически неправильно и часто просто опасно. В этой статье я расскажу, почему mysql_dump - это плохое решение и что с ним можно сделать.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2016-04-21</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2016-04-21-xtrabackup/>https://prudnitskiy.pro/post/2016-04-21-xtrabackup/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/mysql/>#mysql</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+<li><a href=https://prudnitskiy.pro/tags/backup/>#backup</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2015-11-26-pinba/>Отслеживаем PHP с помощью PINBA на debian</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>PHP - исключительно популярный язык программирования, до сих пор огромное количество проектов пишется именно на нем. Язык ругают за отвратительный дизайн, неудобный синтаксис, кривое поведение в спорных случаях, отсутствие нормальных средств отладки - но его популярность это никак не снижает. Самое страшное для админа - ситуация, когда на сильно нагруженном проекте начинает тормозить код. Стандартные средства отладки (xprof, xdebug) роняют производительность языка в яму (накладные расходы - вплоть до пятикратного падения скорости), и как отлаживать сложный код на живую - совершенно неясно. Именно для борьбы с такими проблемами придумана PINBA - расширение для мониторинга скорости кода. Тут я расскажу, как установить PINBA (клиент, сервер и интерфейс) на debian и что с ними потом делать.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2015-11-26</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2015-11-26-pinba/>https://prudnitskiy.pro/post/2015-11-26-pinba/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/%D0%BC%D0%BE%D0%BD%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%BD%D0%B3/>#мониторинг</a></li>
+<li><a href=https://prudnitskiy.pro/tags/linux/>#linux</a></li>
+<li><a href=https://prudnitskiy.pro/tags/mysql/>#mysql</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2015-09-06-mongo-shard/>Миграция на mongo replica set без потери данных</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>По сути - это не статья, а, скорее, просто памятка, чтобы самому не забыть. MongoDB - популярный документо-ориентированный движок управления базой. Штатно он имеет две разных технологии кластеризации: репликационные наборы (replica set) и шардирование (shard). Разница проста - в случае реплики на всех узлах данные одинаковы и любой узел может выступать источником данных (<strong>внимание, mongodb не является CAP-полной базой, так что точность данных тут под большим вопросом!</strong>), что обеспечивает отказоустойчивость. В случае шардирования данные &ldquo;размазаны&rdquo; по всему набору шарда, но каждый сервер внутри шарда имеет только свои данные. За счет этого распределяется нагрузка (например, с трех узлов данные можно читать параллельно), но снижается надежность - упавший узел означает потерю части данных шарда. В данной статье будет описание, как переехать с единичной монги на репсет не потеряв при этом данные.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2015-09-06</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2015-09-06-mongo-shard/>https://prudnitskiy.pro/post/2015-09-06-mongo-shard/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/mongo/>#mongo</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2015-05-01-xtradb-quickstart/>Быстрая миграция MySQL на failover cluster</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &ldquo;из коробки&rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.</p>
+<p>Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2015-05-01</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/>https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/mysql/>#mysql</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2014-12-25-debian-to-mdraid/>Мигрируем Debian на softraid без потери данных</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Современные жесткие диски - чудо инженерии и техники. Пластины из магниево-алюминиевого сплава несутся со скоростью 120 оборотов в секунду, при этом считывающую голову от поверхности диска отделяет расстояние в 1/10 толщины человеческого волоса. Сама голова перемещается в любую точку всего за 2мс, что вызывает боковую перегрузку в фантастические 550G. Современные диски обладают впечатляющим объемом, большой линейной скоростью (что на чтение, что на запись) и минимальной задержкой поиска. И платят они за это (кроме цены) серьезным падением надежности. Старенькие Seagate Barracude и Quantum Fireball 6-10 гигабайт объемом без каких-либо нареканий жили десятилетиями, еще более старинные IBM на сотни мегабайт можно было безопасно вскрыть и закрыть в домашних условиях без специальной подготовки. Современные модели крайне чувствительны к вибрациям, тряске, углу наклона, удару и даже шуму (sic!). Средний срок жизни современного террабайтника - три года, если он эксплуатируется не слишком активно. Диски для серверов и NAS живут год-два. Если раньше RAID считался дорогой экзотикой серверного мира (по типу SCSI), то сейчас программный soft-raid - абсолютная необходимость, без которого сервер просто нельзя устанавливать.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2014-12-25</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2014-12-25-debian-to-mdraid/>https://prudnitskiy.pro/post/2014-12-25-debian-to-mdraid/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/linux/>#linux</a></li>
+<li><a href=https://prudnitskiy.pro/tags/debian/>#debian</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2014-10-24-smokeping/>Мониторинг задержек при помощи smokeping</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Как-то мне (в очередной раз) потребовалось настроить мониторинг доступности клиентского сервиса через интернет. В процессе настройки я обнаружил, что не смотря на существование очень простого, понятного и удобного инструмента под названием SmokePing, по нему практически нет документации на русском (а документация на английском очень ограничена и запрятана в странном месте). Поэтому я решил написать эту небольшую вводную статью.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2014-10-24</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2014-10-24-smokeping/>https://prudnitskiy.pro/post/2014-10-24-smokeping/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/%D0%BC%D0%BE%D0%BD%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%BD%D0%B3/>#мониторинг</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2014-09-17-practical-paranoia/>Коротко о безопасности в сети или краткое руководство для практикующих параноиков</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Кто-то, возможно, не поверит, но написать эту статью я собирался довольно давно. Недавние события (утечка личных фотографий звезд и 7 миллионов почтовых паролей от google и yandex) не была поводом, но подтолкнула меня к перу. Безопасности в интернете (и вообще - в ИТ) обычный пользователь уделяет на диво мало внимания, не в пример безопасности физической. Кто-то не хочет ничего делать потому, что лень, кто-то считает, что ему “как честному человеку скрывать нечего” (да-да, я встречал такой лозунг неоднократно, особенно, когда вводили цензуру в интернете на территории 1/5 части суши).</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2014-09-17</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2014-09-17-practical-paranoia/>https://prudnitskiy.pro/post/2014-09-17-practical-paranoia/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/%D0%B1%D0%B5%D0%B7%D0%BE%D0%BF%D0%B0%D1%81%D0%BD%D0%BE%D1%81%D1%82%D1%8C/>#безопасность</a></li>
+</ul>
+</div>
+</div>
+</article>
+<article class="post-list h-feed">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title"><a class=u-url href=/post/2013-11-14-monitoring-comparsion/>Сравнение систем мониторинга</a></h1>
+</header>
+</div>
+<div class="content post-summary p-summary">
+<p>Мониторинг (отслеживание состояния сервисов), наряду с резеврным копированием является, наверное, одной из самых старых и популярных задач для системного администратора. Разумеется, существует великое множество различных инструментов для ее выполнения. В этом развесистом великолепии с трудом ориентируются даже бывалые специалисты. В данном тексте я собрал основные системы мониторинга с кратким описанием и сравнением плюсов, минусов и особенностей. Разумеется, статья не претендует на всеобъемлющее описание всех систем мониторинга планеты (их слишком много), но поможет хотя бы соориентироваться и понять, куда искать.</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2013-11-14</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2013-11-14-monitoring-comparsion/>https://prudnitskiy.pro/post/2013-11-14-monitoring-comparsion/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/%D0%BC%D0%BE%D0%BD%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%BD%D0%B3/>#мониторинг</a></li>
+</ul>
+</div>
+</div>
+</article>
+<div class=pagination>
+<div class="left pagination-item disabled">
+</div>
+<div class="right pagination-item">
+<a href=/page/2/>to old posts</a>
+</div>
+</div>
+</div>
+</main>
+<footer class=common-footer>
+<div class=common-footer-bottom>
+<div class=copyright>
+<p>© Paul Rudnitskiy, 2023<br>
+Powered by <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, theme <a target=_blank rel="noopener noreferrer" href=https://github.com/mitrichius/hugo-theme-anubis>Anubis</a>.<br>
+</p>
+</div>
+<button class=theme-switcher>
+Dark theme
+</button>
+<script>const STORAGE_KEY='user-color-scheme',defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia('(prefers-color-scheme: dark)');const autoChangeScheme=a=>{currentTheme=a.matches?'dark':'light',document.documentElement.setAttribute('data-theme',currentTheme),changeButtonText()};document.addEventListener('DOMContentLoaded',function(){switchButton=document.querySelector('.theme-switcher'),currentTheme=detectCurrentScheme(),currentTheme=='dark'&&document.documentElement.setAttribute('data-theme','dark'),currentTheme=='auto'&&(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)),changeButtonText(),switchButton.addEventListener('click',switchTheme,!1)});function detectCurrentScheme(){return localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light':'light'}function changeButtonText(){switchButton.textContent=currentTheme=='dark'?"Light theme":"Dark theme"}function switchTheme(a){currentTheme=='dark'?(localStorage.setItem(STORAGE_KEY,'light'),document.documentElement.setAttribute('data-theme','light'),currentTheme='light'):(localStorage.setItem(STORAGE_KEY,'dark'),document.documentElement.setAttribute('data-theme','dark'),currentTheme='dark'),changeButtonText()}</script>
+</div>
+<p class="h-card vcard">
+<a href=https://prudnitskiy.pro class="p-name u-url url fn" rel=me>Paul Rudnitskiy</a>
+<img class=u-photo src=/assets/avatars/ba.jpg>
+</p>
+</footer>
+</div>
+</body>
+</html>

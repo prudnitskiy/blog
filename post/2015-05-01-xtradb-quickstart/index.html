@@ -1,0 +1,381 @@
+<!doctype html><html lang=ru-ru data-theme>
+<head>
+<meta charset=utf-8>
+<meta name=HandheldFriendly content="True">
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=referrer content="no-referrer-when-downgrade">
+<title>Быстрая миграция MySQL на failover cluster - SRE Blog</title>
+<meta name=description content="MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &ldquo;из коробки&rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.
+Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.">
+<link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico>
+<link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png>
+<link rel=stylesheet href=https://prudnitskiy.pro/css/style.min.63aba568b2393a8f5a364a508001b05c9412a603d1a0a69bd50f9944649f9c56.css integrity="sha256-Y6ulaLI5Oo9aNkpQgAGwXJQSpgPRoKab1Q+ZRGSfnFY=">
+<script src=https://prudnitskiy.pro/js/script.min.510c781c39dbb21b4c76d85c82e2bdf4689220adbb7cd61e49e9d293e442fb42.js type=text/javascript integrity="sha256-UQx4HDnbshtMdthcguK99GiSIK27fNYeSenSk+RC+0I="></script>
+<meta property="og:title" content="Быстрая миграция MySQL на failover cluster">
+<meta property="og:description" content="MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &ldquo;из коробки&rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.
+Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2015-05-01T22:13:22+00:00">
+<meta property="article:modified_time" content="2015-05-01T22:13:22+00:00">
+<meta name=twitter:card content="summary">
+<meta name=twitter:title content="Быстрая миграция MySQL на failover cluster">
+<meta name=twitter:description content="MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &ldquo;из коробки&rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.
+Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.">
+</head>
+<body>
+<a class=skip-main href=#main>Skip to main content</a>
+<div class=container>
+<header class=common-header>
+<div class=header-top>
+<h1 class=site-title>
+<a href=/>SRE Blog</a>
+</h1>
+<ul class=social-icons>
+<li>
+<a href=https://github.com/prudnitskiy title=Github rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentcolor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6.0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6.0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3.0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1.0-6.2-.3-40.4-.3-61.4.0.0-70 15-84.7-29.8.0.0-11.4-29.1-27.8-36.6.0.0-22.9-15.7 1.6-15.4.0.0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5.0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9.0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4.0 33.7-.3 75.4-.3 83.6.0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6.0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9.0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+</a>
+</li>
+<li>
+<a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentcolor" d="M416 32H31.9C14.3 32 0 46.5.0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6.0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3.0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2.0 38.5 17.3 38.5 38.5.0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6.0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2.0 79.7 44.3 79.7 101.9V416z"/></svg>
+</span>
+</a>
+</li>
+</ul>
+</div>
+<nav>
+<a href=https://prudnitskiy.pro/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ title=Blog>Blog</a>
+</nav>
+</header>
+<main id=main tabindex=-1>
+<article class="post h-entry">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title">Быстрая миграция MySQL на failover cluster</h1>
+</header>
+</div>
+<div class="content e-content">
+<p>MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &ldquo;из коробки&rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.</p>
+<p>Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.</p>
+<p>В данном примере участвуют три сервера:</p>
+<ul>
+<li>db1 (IP 10.10.171.2)</li>
+<li>db2 (IP 10.10.171.3)</li>
+<li>db3 (IP 10.10.171.4)</li>
+</ul>
+<p>DB1 - &ldquo;старый&rdquo; сервер с обычным MySQL, данные с которого мигрируют в кластер. DB2 и DB3, соответственно - свежие сервера. В принципе, установка свежего кластера &ldquo;с нуля&rdquo; (без данных) - не будет отличаться практически ничем. Изначально статья ориентирована на Debian, но для CentOS сделаны необходимые отступления, благо отличий немного.</p>
+<h2 id=немного-истории>Немного истории
+<span>
+<a href=#%d0%bd%d0%b5%d0%bc%d0%bd%d0%be%d0%b3%d0%be-%d0%b8%d1%81%d1%82%d0%be%d1%80%d0%b8%d0%b8><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Percona XtraDB - это ответвление (fork) изначального MySQL, созданного Монти Видениусом. В какой-то момент Видениус продал свой проект, и это сильно затормозило развитие проекта. Так, как проект обладал спорным качеством когда и был (с другой стороны) очень популярен - появилось огромное количество патчей, которые расширяли, углубляли и ускоряли кодовую базу. Самыми известным были набор патчей от google и набор патчей от Петра Зайцева. Последний создал компанию Percona, в рамках которой оптимизирует MySQL и консультирует пользователей этой системы. Он же выпускает свой форк MySQL, в котором собирает удачно работающие патчи. Как следствие - percona sql server с одной стороны надежнее, с другой - функциональнее, да и просто быстрее. В определенный момент был выпущен специальный дистрибутив XtraDB Cluster с набором библиотек Gallera Cluster - очень удачного и производительного решения для кластеризации MySQL</p>
+<h2 id=подготовка>Подготовка
+<span>
+<a href=#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>XtraDB cluster не входит в стандартные дистрибутивы ОС (ни для Debian, ни для CentOS), по этому, нужно добавить дистрибутивы</p>
+<p>Для Debian (все операции проводим от root):</p>
+<pre><code>#получаем ключи репозитория
+apt-key adv --keyserver keys.gnupg.net --recv-keys 1C4CBDCDCD2EFD2A
+
+#добавляем в файл /etc/apt/sources.list следующие строки:
+
+deb http://repo.percona.com/apt VERSION main
+deb-src http://repo.percona.com/apt VERSION main
+
+#где VERSION - версия вашего debian:
+# 6.0 - squeeze
+# 7.0 - wheezy
+# 8.0 - jessie
+
+#обновляем кеш:
+apt-get update
+</code></pre>
+<p>Для CentOS:</p>
+<pre><code>#добавляем репозиторий
+yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
+
+#на всякий случай - обновляем кеш
+yum clean all &amp;&amp; yum makecache
+</code></pre>
+<p>теперь установим xtradb.</p>
+<p><strong>В момент установки MySQL server будет удален из системы. Вы НЕ потеряете базы и данные в них, но сервис не будет работать до тех пор, пока вы не закончите настройку</strong></p>
+<pre><code>#debian
+apt-get install -y percona-xtradb-cluster-55
+
+#centos
+yum install -y Percona-XtraDB-Cluster-55
+</code></pre>
+<p>Чтобы члены кластера могли общаться друг с другом, на каждом сервере нужно разрешить доступ со всех членов кластера по портам <em>4444</em> и <em>4567</em>. Кроме того, со всех серверов, которые будут использовать кластер БД нужно разрешить доступ на порт <em>3306</em> (штатный порт mysq) и <em>9199</em> (об этом - далее).</p>
+<h2 id=настройка-кластера>Настройка кластера
+<span>
+<a href=#%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0-%d0%ba%d0%bb%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Добавим в /etc/my.cnf (в debian он может называться /etc/mysql/my.cnf - если он уже есть - правим его!) следующие строки:</p>
+<pre><code>[mysqld]
+
+#расположение физических файлов баз
+datadir=/var/lib/mysql
+
+#пользователь, от которого запускается сервер
+user=mysql
+
+#путь к библиотеке синхронизации, перед добавлением убедитесь, что файл по этому пути существует
+wsrep_provider=/usr/lib64/libgalera_smm.so
+
+#список IP всех членов кластера. Параметр идентичен на всех узлах кластера
+wsrep_cluster_address=gcomm://10.10.171.2,10.10.171.3,10.10.171.4
+
+binlog_format=ROW
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+
+#IP адрес узла, на котором мы настраиваем кластер
+wsrep_node_address=10.10.171.2
+
+wsrep_sst_method=xtrabackup-v2
+
+#имя кластера. Уникальное для инсталляции, но единое для всех узлов
+wsrep_cluster_name=axsystems_xtradb_test
+
+#имя пользователя и пароль для синхронизации
+wsrep_sst_auth=&quot;syncuser:Ttm3wsbPE72Km96R&quot;
+</code></pre>
+<p>запустим первый узел в кластере. Если вы мигрируете кластер с существующего MySQL на percona - это надо делать на старом сервере, где данные. Этот узел в кластере будет образцом - остальные заберут с него данные</p>
+<pre><code>/etc/init.d/mysql bootstrap-pxc
+</code></pre>
+<p>создадим пользователя для синхронизации:</p>
+<pre><code>mysql@db1&gt; CREATE USER 'syncuser'@'localhost' IDENTIFIED BY 'Ttm3wsbPE72Km96R';
+mysql@db1&gt; GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT ON *.* TO 'syncuser'@'localhost';
+mysql@db1&gt; FLUSH PRIVILEGES;
+</code></pre>
+<p>скопируем конфигурацию на DB2, и внесем необходимые изменения:</p>
+<pre><code>[mysqld]
+
+#расположение физических файлов баз
+datadir=/var/lib/mysql
+
+#пользователь, от которого запускается сервер
+user=mysql
+
+#путь к библиотеке синхронизации, перед добавлением убедитесь, что файл по этому пути существует
+wsrep_provider=/usr/lib64/libgalera_smm.so
+
+#список IP всех членов кластера. Параметр идентичен на всех узлах кластера
+wsrep_cluster_address=gcomm://10.10.171.2,10.10.171.3,10.10.171.4
+
+binlog_format=ROW
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+
+#IP адрес узла, на котором мы настраиваем кластер.
+wsrep_node_address=10.10.171.3
+
+wsrep_sst_method=xtrabackup-v2
+
+#имя кластера. Уникальное для инсталляции, но единое для всех узлов
+wsrep_cluster_name=axsystems_xtradb_test
+
+#имя пользователя и пароль для синхронизации
+wsrep_sst_auth=&quot;syncuser:Ttm3wsbPE72Km96R&quot;
+</code></pre>
+<p>Теперь подключим новый узел в кластер:</p>
+<pre><code>/etc/init.d/mysql start
+</code></pre>
+<p>Запускаться он будет долго, так как ему надо снять копию с работающего уже члена кластера. К слову - в этот момент кластер уже работает и ваши пользователи могут использовать базу.</p>
+<p>Как только mysql на втором сервере стартует успешно - можно проверить состояние кластера. Для этого в mysql консоли любого сервера пишем:</p>
+<pre><code>mysql&gt; show status like 'wsrep%';
++----------------------------+--------------------------------------+
+| Variable_name              | Value                                |
++----------------------------+--------------------------------------+
+| wsrep_local_state_uuid     | c2883338-834d-11e2-0800-03c9c68e41ec |
+[...]
+| wsrep_local_state          | 4                                    |
+| wsrep_local_state_comment  | Synced                               |
+[...]
+| wsrep_cluster_size         | 2                                    |
+| wsrep_cluster_status       | Primary                              |
+| wsrep_connected            | ON                                   |
+[...]
+| wsrep_ready                | ON                                   |
++----------------------------+--------------------------------------+
+40 rows in set (0.01 sec)
+</code></pre>
+<p>как видно - status - synced, размер кластера - 2 (узла). Все работает, по аналогии добавляем третий узел (не забудьте поменять wsrep_node_address в настройках!)</p>
+<h2 id=failover-доступ>failover-доступ
+<span>
+<a href=#failover-%d0%b4%d0%be%d1%81%d1%82%d1%83%d0%bf><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Большая часть современного ПО, работающая с MySQL, не может нормально обрабатывать несколько серверов. По этому мы будем использовать haproxy для распределения нагрузки. В этом примере haproxy ставится на каждый сервер, который использует mysql. HAProxy есть в базовом репозитории любого современного дистрибутива, так что просто ставим пакет:</p>
+<pre><code>#debian
+apt-get install -y haproxy
+
+#centos
+yum install -y haproxy
+</code></pre>
+<p>Теперь настраиваем его. Пишем в конфигурацию /etc/haproxy/haproxy.cfg:</p>
+<pre><code>global
+    log         127.0.0.1 local2
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    maxconn     4000
+    user        haproxy
+    group       haproxy
+    daemon
+    #stats socket /var/lib/haproxy/stats
+
+
+defaults
+    log         global
+    mode        http
+    option      tcplog
+    option      dontlognull
+    retries     3
+    redispatch
+    maxconn     2000
+    contimeout  5000
+    clitimeout  50000
+    srvtimeout  50000
+
+#webui со статистикой. Обязательно используйте пароль (или закройте доступ к порту)
+listen stats 0.0.0.0:8086
+    mode http
+    stats enable
+    stats uri /
+    stats realm &quot;balancer&quot;
+    stats auth logan:q6SJYy5cB3KKy34z
+
+#собственно, mysql кластер
+
+listen mysql-cluster 0.0.0.0:3306
+    mode tcp
+    balance roundrobin
+    option  httpchk
+    server db1 10.10.171.2:3306 check port 9199 inter 12000 rise 3 fall 3
+    server db2 10.10.171.3:3306 check port 9199 inter 12000 rise 3 fall 3
+    server db3 10.10.171.4:3306 check port 9199 inter 12000 rise 3 fall 3
+</code></pre>
+<p>Порт 9199 haproxy будет использовать, чтобы убедится, что член кластера работоспособен и функционирует, как нужно. Сам XtraDB кластер не ждет соединений на 9199 порту. Нам потребуется специальный сервис, который будет локально проверять работу xtradb-cluster сервера для HAProxy. Сервис проверки очень прост, это не демон, так что его будет запускать супердемон xinetd. Вернемся на db1. Для начала - установим xinetd:</p>
+<pre><code>#centos
+yum install -y xinetd
+
+#debian
+apt-get install -y xinetd
+</code></pre>
+<p>Создадим там файл /etc/xinetd.d/mysqlchk со следующим содержимым:</p>
+<pre><code>service mysqlchk
+{
+        disable = no
+        flags           = REUSE
+        socket_type     = stream
+        port            = 9199
+        wait            = no
+        user            = nobody
+        server          = /usr/bin/clustercheck
+        server_args     = syncuser Ttm3wsbPE72Km96R 1 /var/tmp/mss.log 0 /etc/my.cnf
+        log_on_failure  += USERID
+        only_from       = 0.0.0.0/0
+        per_source      = UNLIMITED
+}
+</code></pre>
+<p>Немного подробностей о том, что тут написано. Главные настройки - это server_args. Они позиционные, так что очередность путать нельзя:</p>
+<ul>
+<li>имя пользователя для проверки. Нужны права CONNECT и REPLICATION CLIENT</li>
+<li>пароль</li>
+<li>отвечать, что сервер доступен, если он - донор (то есть остальные сервера в данный момент синхронизируются с него)</li>
+<li>путь к файлу журнала</li>
+<li>отвечать, что сервер <em>не доступен</em>, если он сейчас readonly (синхронизируется или заблокирован). Если поставить 1 - haproxy будет считать сервер в статусе readonly доступным</li>
+<li>путь к my.cnf. В некоторых версиях debian он находится в /etc/mysql/my.cnf</li>
+</ul>
+<p>пользователь и пароль в директиве server_args - из конфигурации mysql (выше). Обратите внимание на путь к my.cnf, в некоторых версиях debian он находится в /etc/mysql/my.cnf</p>
+<p>Так же нужно добавить следующую строку в /etc/services:</p>
+<pre><code>mysqlchk        9199/tcp #mysqlcheck
+</code></pre>
+<p>После этого можно перезапустить xinetd. Проверим, что сервис проверки работает, как задумано:</p>
+<pre><code>db1&gt; telnet 127.0.0.1 9199
+
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Connection: close
+Content-Length: 40
+
+Percona XtraDB Cluster Node is synced.
+Connection closed by foreign host.
+</code></pre>
+<p>Эту последовательность действий надо повторить на всех машинах - членах кластера.</p>
+<p>Теперь можно спокойно перезапустить haproxy, зайти на страницу статистики (в данном примере - http://[SERVER_IP]:8086/) и убедится, что haproxy видит все сервера кластера. После этого можно спокойно прописывать на сервере-пользователе БД локальный адрес 127.0.0.1, порт и все остальные настройки - без изменений - и теперь у вас есть отказоустойчивый кластер баз mysql</p>
+<h2 id=послесловие>послесловие
+<span>
+<a href=#%d0%bf%d0%be%d1%81%d0%bb%d0%b5%d1%81%d0%bb%d0%be%d0%b2%d0%b8%d0%b5><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Не смотря на то, что данное решение кажется &ldquo;идеальным решением&rdquo;, у него есть и слабые стороны. На всякий случай, опишу их:</p>
+<ul>
+<li>Ведение кластеризации требует накладных расходов. Они очень незначительны (по моим замерам не получалось более 2% от базовой производительности сервера). Частично это нивелируется тем, что Percona быстрее, чем штатный MySQL, частично - тем, что мы используем балансировку нагрузки. Однако не упомянуть об этом было бы нечестно. Накладные расходы растут с увеличением количества узлов в кластере.</li>
+<li>Percona Xtradb cluster крайне плохо поддерживает таблицы типа MyISAM. Об этом даже пишут в официальной документации. Если вам нужен MyISAM - я очень не рекомендую использовать xtradb cluster</li>
+<li>Данная конфигурация отвечает исключительно за репликацию, шардирование (разделение данных между серверами в зависимости от содержимого, например - пользователи с четным ID - на правый сервер, с нечетным - на левый) - тут отсутствует.</li>
+</ul>
+<h3 id=в-случае-аварии>в случае аварии
+<span>
+<a href=#%d0%b2-%d1%81%d0%bb%d1%83%d1%87%d0%b0%d0%b5-%d0%b0%d0%b2%d0%b0%d1%80%d0%b8%d0%b8><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h3><p>Если что-то из описанного в статье работает не так, как описано (или не работает вовсе) - попробуйте проверить ваши последние шаги. Самые частые проблемы, с которыми сталкивался я, это:</p>
+<ul>
+<li>Закрытые порты не дают узлам кластера общаться между собой (4444 используется для общения и координации, 4567 - для передачи данных свеже добавленным узлам).</li>
+<li>Проблемы с линковкой (ошибка xtrabackup is exited: Perl:DBD is not installed, при этом Perl:DBD в системе есть). Это решается простым удалением всех пакетов, связанных с MySQL и установкой XtraDB cluster заново.</li>
+<li>Подавляющее большинство ошибок можно диагностировать чтением log-файла. /var/log/mysql.log (для debian) или /var/log/mysqld.log (centos) - ваш друг.</li>
+</ul>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2015-05-01</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/>https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/mysql/>#mysql</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+</ul>
+</div>
+</div>
+</article>
+<div class="pagination post-pagination">
+<div class="left pagination-item">
+<a href=/post/2015-09-06-mongo-shard/>Миграция на mongo replica set без потери данных</a>
+</div>
+<div class="right pagination-item">
+<a href=/post/2014-12-25-debian-to-mdraid/>Мигрируем Debian на softraid без потери данных</a>
+</div>
+</div>
+</main>
+<footer class=common-footer>
+<div class=common-footer-bottom>
+<div class=copyright>
+<p>© Paul Rudnitskiy, 2023<br>
+Powered by <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, theme <a target=_blank rel="noopener noreferrer" href=https://github.com/mitrichius/hugo-theme-anubis>Anubis</a>.<br>
+</p>
+</div>
+<button class=theme-switcher>
+Dark theme
+</button>
+<script>const STORAGE_KEY='user-color-scheme',defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia('(prefers-color-scheme: dark)');const autoChangeScheme=a=>{currentTheme=a.matches?'dark':'light',document.documentElement.setAttribute('data-theme',currentTheme),changeButtonText()};document.addEventListener('DOMContentLoaded',function(){switchButton=document.querySelector('.theme-switcher'),currentTheme=detectCurrentScheme(),currentTheme=='dark'&&document.documentElement.setAttribute('data-theme','dark'),currentTheme=='auto'&&(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)),changeButtonText(),switchButton.addEventListener('click',switchTheme,!1)});function detectCurrentScheme(){return localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light':'light'}function changeButtonText(){switchButton.textContent=currentTheme=='dark'?"Light theme":"Dark theme"}function switchTheme(a){currentTheme=='dark'?(localStorage.setItem(STORAGE_KEY,'light'),document.documentElement.setAttribute('data-theme','light'),currentTheme='light'):(localStorage.setItem(STORAGE_KEY,'dark'),document.documentElement.setAttribute('data-theme','dark'),currentTheme='dark'),changeButtonText()}</script>
+</div>
+<p class="h-card vcard">
+<a href=https://prudnitskiy.pro class="p-name u-url url fn" rel=me>Paul Rudnitskiy</a>
+<img class=u-photo src=/assets/avatars/ba.jpg>
+</p>
+</footer>
+</div>
+</body>
+</html>

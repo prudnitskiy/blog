@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>vpn on SRE Blog</title><link>https://prudnitskiy.pro/tags/vpn/</link><description>SRE Blog (vpn)</description><generator>Hugo -- gohugo.io</generator><language>ru-ru</language><lastBuildDate>Wed, 24 Jul 2019 12:00:00 +0000</lastBuildDate><atom:link href="https://prudnitskiy.pro/tags/vpn/index.xml" rel="self" type="application/rss+xml"/><item><title>WireGuard: перспективный VPN</title><link>https://prudnitskiy.pro/post/2019-07-24-wireguard/</link><pubDate>Wed, 24 Jul 2019 12:00:00 +0000</pubDate><guid>https://prudnitskiy.pro/post/2019-07-24-wireguard/</guid><description>&lt;p>VPN придуман давно (IPSec - в 1998 году, например) и имеет множество областей применения - безопасный доступ для удаленных сотрудников, прозрачное объединение корпоративных сетей, безопасный доступ в интернет поверх небезопасных каналов, даже - уклонение от корпоративной и государственной цензуры. Протоколов VPN - целый выводок, а реализации (программы, ПАК, даже чистые аппаратные решения без ПО есть) - еще больше. При этом каждый каждый стандарт имеет свои недостатки. WireGuard - это очередной протокол VPN, попытка эти проблемы решить. При всех плюсах WG (про них - ниже) - он мало известен и на удивление плохо документирован. Эта статья - попытка устранить эти недостатки.&lt;/p>
+&lt;p>WireGuard - это протокол VPN, который был придуман и реализован полностью с нуля - с применением последних, самых свежих концепций в программировании и криптографии. Главная задача, которую ставил перед собой автор (Джейсон Доненфелд) - простота протокола и реализации и высокая скорость работы. Протокол предельно простой, по-моему даже PPP сложнее. Очень простое взаимодействие операционной системы с VPN - WireGuard добавляет в систему сетевой интерфейс типа wireguard (по умолчанию - wgX), маршрутизация трафика идет через него. VPN полностью реализован на уровне ядра (для Linux, для других операционных систем поддерживается работа в виде обычной программы) - он очень быстро работает. Трафик упаковывается в совершенно типовой UDP, не нужны специфичные IP-протоколы (как это сделано в PPP/IPSec). Автор решил не использовать классические legacy-протоколы шифрования и взял самые свежие, но доказанно безопасные протоколы:&lt;/p>
+&lt;ul>
+&lt;li>ChaCha20 (salsa) - симметричное потоковое шифрование данных&lt;/li>
+&lt;li>Curve25519 ECDH - ассиметричное шифрование для авторизации и аутентификации&lt;/li>
+&lt;li>Blake2s - для хеширования&lt;/li>
+&lt;/ul>
+&lt;p>По скорости работы WireGuard обгоняет IPSec, даже с учетом того, что IPSec жульничает - современные CPU часть криптопримитивов могут выполнять в одну инструкцию.&lt;/p>
+&lt;p>При этом по простоте и удобству настройки WireGuard проще OpenVPN.&lt;/p>
+&lt;p>В качестве бонуса - Торвальдс очень хвалил код WireGuard (а Торвальдс известен нетерпимостью к плохому коду и не станет раздавать незаслуженные комплименты) и обещал, что код войдет в базовое ядро в ближайшем будущем. Звучит очень интересно, не так ли?&lt;/p>
+&lt;p>Разумеется, минусы у него тоже есть, и не упомянуть их было неправильно:&lt;/p>
+&lt;ul>
+&lt;li>wireguard формально находится в стадии активной разработки. До сих пор не вышло ни одной формальной версии, то есть даже wireguard 0.0.0.1 - нет в природе. Авторы не обещают и не гарантируют обратной совместимости протокола, то есть при одном удачном обновлении у вас легко может рассыпаться сеть. За пол-года, что я использовал WG - у меня такого не было ни разу, но в теории такая возможность сохраняется до выхода стабильной версии.&lt;/li>
+&lt;li>wireguard не является стандартным и стабильным решением, не существует физического устройства, которое его поддерживает официально (как IPSec, например). Частично можно компенсировать тем, что все современные linux-based прошивки для маршрутизаторов (dd-wrt, OpenWRT, tomato) - поддерживают его с минимальным набором телодвижений. OpenVPN это обстоятельство, кстати, никак не мешает - из железяк его поддерживает разве что mikrotik и делает это настолько отвратительно, что лучше бы не поддерживал вовсе.&lt;/li>
+&lt;li>wireguard не проходил формального аудита безопасности. Протоколы, которые он используют - аудит проходили, реализация - нет. Прохождение аудита у авторов запланировано после стабилизации кодовой базы. Как следствие - сертифицировать решение на базе wireguard невозможно. Если вы работаете в банке - пожалуйста, не используйте wireguard.&lt;/li>
+&lt;li>криптопримитивы в wireguard прибиты гвоздиками и поменять их невозможно. Только ECDH для авторизации, только salsa20 для потоковых шифров, только UDP в качестве транспорта. С одной стороны - это здорово упрощает жизнь &amp;ndash; невозможно перепутать настройки протоколов и провести пару вечеров за отладкой. С другой - если в каком-то из этих примитивов найдут серьезную дыру - придется переписать пол-протокола или вообще все выкинуть. Частично компенсируется тем, что весь Bitcoin (и не только он) построен вокруг ECDH, так что если там найдут дыру - проблемы wiregaurd будут мелочью.&lt;/li>
+&lt;/ul>
+&lt;p>В целом я могу уверенно рекомендовать wireguard для личного использования или как VPN-протокол в малокритичных сетях (без SLA и с командой, которая готова с ним разбираться). В общем случае, если у вас есть OpenVPN на linux - WireGuard идеально может его заменить. WireGuard напоминает мне OpenVPN в те времена, когда тот еще только появился и не успел стать legacy - простой, удобный, быстрый в настройке VPN.&lt;/p>
+&lt;h2 id="установка" >Установка
+&lt;span>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;h3 id="debianubuntu" >Debian/Ubuntu
+&lt;span>
+&lt;a href="#debianubuntu">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Так, как стабильных релизов wireguard нет - нам потребуется DKMS для сборки модулей ядра. Пакеты для WireGuard для debian stretch/buster не выпускались, но они есть для debian sid. Добавим репозиторий unstable и создадим pin. Если добавить репозиторий и не создавать пин - все пакеты из sid приедут в ваш сервер. Удачно запущенный apt-get install превратит систему в кашу:&lt;/p>
+&lt;pre>&lt;code># echo &amp;quot;deb http://deb.debian.org/debian/ sid main&amp;quot; &amp;gt; /etc/apt/sources.list.d/unstable.list
+# printf 'Package: *\nPin: release a=unstable\nPin-Priority: 90\n' &amp;gt; /etc/apt/preferences.d/limit-unstable.pref
+&lt;/code>&lt;/pre>
+&lt;p>К счастью, в ubuntu все необходимые пакеты уже есть и дополнительные телодвижения не нужны. Ставим модуль:&lt;/p>
+&lt;pre>&lt;code># apt-get update
+# apt-get install wireguard wireguard-dkms wireguard-tools
+&lt;/code>&lt;/pre>
+&lt;p>Проверим, что все установилось:&lt;/p>
+&lt;pre>&lt;code># ip link add dev wg0 type wireguard
+# ip link print
+1: lo: &amp;lt;LOOPBACK,UP,LOWER_UP&amp;gt; mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1
+link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+[...]
+25: wg0: &amp;lt;POINTOPOINT,NOARP&amp;gt; mtu 1420 qdisc noop state DOWN mode DEFAULT group default qlen 1
+link/none
+&lt;/code>&lt;/pre>
+&lt;h3 id="centosrheloracleubl" >CentOS/RHEL/OracleUBL
+&lt;span>
+&lt;a href="#centosrheloracleubl">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Владельцам rpm-based дистрибутивов повезло больше - есть готовый отдельный репозиторий, так что достаточно поставить его и EPEL (хотя мне сложно представить rpm-based дистрибутив без EPEL):&lt;/p>
+&lt;pre>&lt;code># curl -Lo /etc/yum.repos.d/wireguard.repo https://copr.fedorainfracloud.org/coprs/jdoss/wireguard/repo/epel-7/jdoss-wireguard-epel-7.repo
+# yum makecache
+# yum install epel-release
+# yum install wireguard-dkms wireguard-tools
+&lt;/code>&lt;/pre>
+&lt;h2 id="настройка" >Настройка
+&lt;span>
+&lt;a href="#%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;h3 id="сервер" >Сервер
+&lt;span>
+&lt;a href="#%d1%81%d0%b5%d1%80%d0%b2%d0%b5%d1%80">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Wireguard использует авторизацию только по ключам (keypair). Ключи генерирует сам. Авторизация клиента производится по его публичному ключу, то есть на сервере должны быть публичные ключи всех клиентов, а на клиентах - публичный ключ сервера. Создадим такой ключ:&lt;/p>
+&lt;pre>&lt;code>server# umask 077
+server# wg genkey &amp;gt; server.priv
+server# wg pubkey &amp;lt; server.priv &amp;gt; server.pub
+&lt;/code>&lt;/pre>
+&lt;p>На выходе получим два ключа, приватный и публичный. В принципе wireguard можно полностью управлять через команду ip, но это не сказать, чтобы сильно удобно. Для того, чтобы упростить настройку, авторы wireguard написали утилиту &lt;code>wg-quick&lt;/code>. Она читает конфиг из &lt;code>/etc/wireguard/wgX.conf&lt;/code> и создает соответствующий интерфейс. Пример конфига &lt;code>/etc/wireguard/wg0.conf&lt;/code>:&lt;/p>
+&lt;pre>&lt;code>[Interface]
+Address = 192.168.254.1/24
+SaveConfig = false
+ListenPort = 25968
+PrivateKey = [...]
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+&lt;/code>&lt;/pre>
+&lt;p>Что тут написано:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>address&lt;/code> - адресное пространство VPN-сети. Этот адрес будет присвоен интерфейсу wg0. Все клиенты, которые подключены к одному интерфейсу - должны иметь адреса в одной подсети, иначе они не смогут общаться.&lt;/li>
+&lt;li>&lt;code>saveconfig = false&lt;/code> - если что-то было изменено после wg-quick вручную (командой ip link) - по умолчанию изменения запишутся в конфиг. Побочный эффект - если во время работы wireguard вы что-то в конфиге поменяете и перезапустите wireguard - все изменения будут стерты.&lt;/li>
+&lt;li>&lt;code>ListenPort&lt;/code> - на какой порт должны приходить UDP-датаграммы, предназначенные для этого конкретного интерфейса wireguard. Никто не запрещает создать несколько интерфейсов wireguard - каждый с отдельным ключом, адресным пространством и списком клиентов. Этот порт должен быть открыт снаружи для UDP&lt;/li>
+&lt;li>&lt;code>PrivateKey&lt;/code> - ключ из server.priv (из шага выше).&lt;/li>
+&lt;li>&lt;code>PostUp&lt;/code> - добавляет правила в фаерволл - разрешает форвардинг для интерфейса и включает nat. Эта строка вам не нужна, если правила добавлены вручную. В данном примере считается, что внешний интерфейс сервера - eth0.&lt;/li>
+&lt;li>&lt;code>PostDown&lt;/code> - удаляет правила, который добавил &lt;code>PostUp&lt;/code>&lt;/li>
+&lt;/ul>
+&lt;p>На всякий случай включим форвардинг пакетов:&lt;/p>
+&lt;pre>&lt;code>server# sysctl -w net.ipv4.ip_forward=1
+server# echo &amp;quot;net.ipv4.ip_forward=1&amp;quot; &amp;gt;&amp;gt; /etc/sysctl.conf
+&lt;/code>&lt;/pre>
+&lt;h3 id="клиент" >Клиент
+&lt;span>
+&lt;a href="#%d0%ba%d0%bb%d0%b8%d0%b5%d0%bd%d1%82">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Точно так же ставим wireguard и генерируем ключи, как в примере выше:&lt;/p>
+&lt;pre>&lt;code>client# umask 077
+client# wg genkey &amp;gt; client.priv
+client# wg pubkey &amp;lt; client.priv &amp;gt; client.pub
+&lt;/code>&lt;/pre>
+&lt;p>А вот содержимое конфига будет слегка иным:&lt;/p>
+&lt;pre>&lt;code>[Interface]
+PrivateKey = &amp;lt;from client.priv&amp;gt;
+Address = 192.168.254.2/24
+ListenPort = 25967
+Table=wire
+[Peer]
+PublicKey = &amp;lt;from server.pub&amp;gt;
+Endpoint = &amp;lt;server ip&amp;gt;:25968
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 30
+&lt;/code>&lt;/pre>
+&lt;p>Что появилось в конфиге нового. Секция Interface как и раньше - отвечает за настройку самого сервиса wiregurad:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>Address&lt;/code> - из той же подсети, что и адрес сервера, но уникальный.&lt;/li>
+&lt;li>&lt;code>Table = wire&lt;/code> - нужно, чтобы wireguard знал, в какую таблицу записывать маршруты. Они описаны в разделе peer (о нем ниже) и в момент, когда связь с peer-ом (сервером) будет установлена - маршруты будут добавлены. Если таблицу не указывать - будет использована системная. Это может вызвать проблему, если VPN выдает маршрут по умолчанию (как здесь). Чуть ниже я покажу, как с этим жить.&lt;/li>
+&lt;/ul>
+&lt;p>Секция peer настраивает параметры подключения к другой стороне:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>PublicKey&lt;/code> - публичный ключ сервера. Именно по нему клиент авторизует сервер.&lt;/li>
+&lt;li>&lt;code>Endpoint&lt;/code> - внешний адрес и порт сервера.&lt;/li>
+&lt;li>&lt;code>AllowedIPs&lt;/code> - обращения к каким адресам можно отправлять в этот туннель. При поднятии туннеля маршрут ко всем адресам (сетям), перечисленным тут - будет добавлен в таблицу маршрутизации из секции Interface. Если какой-то сети или адреса тут нет - ручное добавление маршрута не поможет, wireguard отклонит такой маршрут. В данном примере я использую wireguard-сервер как шлюз по умолчанию, то есть хожу в интернет через него. Если сетей нужно добавить несколько - их можно перечислить через запятую.&lt;/li>
+&lt;li>&lt;code>PersistentKeepalive&lt;/code> - интервал keepalive в секундах. По умолчанию данные в туннеле есть только тогда, когда кто-то что-то через него передает. KeepAlive периодически пингует удаленную сторону и поддерживает соединение. Это важно в тех случаях, если вы сидите за nat - сервер не может поддерживать соединение с клиентом, nat gateway разорвет неактивное соединение. Если после этого сервер захочет передать пакет клиенту - он не сможет этого сделать.&lt;/li>
+&lt;/ul>
+&lt;p>Включаем wiregurad на клиенте и идем настраивать на сервер:&lt;/p>
+&lt;pre>&lt;code>client# wg-quick up wg0
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы клиент запускал wireguard автоматически - добавим его в автозагрузку:&lt;/p>
+&lt;pre>&lt;code>client# systemctl enable wg-quick@wg0
+&lt;/code>&lt;/pre>
+&lt;h3 id="снова-сервер" >Снова сервер
+&lt;span>
+&lt;a href="#%d1%81%d0%bd%d0%be%d0%b2%d0%b0-%d1%81%d0%b5%d1%80%d0%b2%d0%b5%d1%80">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>В &lt;code>/etc/wireguard/wg0.conf&lt;/code> нужно вписать клиента, которого мы только что создали выше. Добавим секцию:&lt;/p>
+&lt;pre>&lt;code>[Peer]
+PublicKey = &amp;lt;from client.pub&amp;gt;
+AllowedIPs = 192.168.254.2/32, 192.168.1.1/24
+Endpoint = &amp;lt;client public IP&amp;gt;:25967
+&lt;/code>&lt;/pre>
+&lt;p>Обратите внимание на то, что в AllowedIPs указан, в том числе, адрес интерфейса wireguard &lt;em>на клиенте&lt;/em>. Это очень важно, без этого трафик ходить не будет. Про него часто забывают. В примере выше через VPN маршрутизируется сеть &lt;code>192.168.1.0/24&lt;/code>, потому она указана тоже.&lt;/p>
+&lt;p>Поднимем VPN на сервере тоже и проверим:&lt;/p>
+&lt;pre>&lt;code>server# wg-quick up wg0
+server# wg show
+interface: wg0
+public key: [...]
+private key: (hidden)
+listening port: 25968
+peer: [...]
+endpoint: 1.2.3.4:25967
+allowed ips: 192.168.254.2/32, 192.168.1.0/24
+latest handshake: 1 minute, 35 seconds ago
+transfer: 1.84 KiB received, 2.84 KiB sent
+&lt;/code>&lt;/pre>
+&lt;p>Настройка VPN, в общем-то, закончена. Как я и говорил выше - восхитительно просто.&lt;/p>
+&lt;h4 id="лирическое-отступление-маршрутизация-через-таблицы-и-маркировка-трафика" >Лирическое отступление: маршрутизация через таблицы и маркировка трафика
+&lt;span>
+&lt;a href="#%d0%bb%d0%b8%d1%80%d0%b8%d1%87%d0%b5%d1%81%d0%ba%d0%be%d0%b5-%d0%be%d1%82%d1%81%d1%82%d1%83%d0%bf%d0%bb%d0%b5%d0%bd%d0%b8%d0%b5-%d0%bc%d0%b0%d1%80%d1%88%d1%80%d1%83%d1%82%d0%b8%d0%b7%d0%b0%d1%86%d0%b8%d1%8f-%d1%87%d0%b5%d1%80%d0%b5%d0%b7-%d1%82%d0%b0%d0%b1%d0%bb%d0%b8%d1%86%d1%8b-%d0%b8-%d0%bc%d0%b0%d1%80%d0%ba%d0%b8%d1%80%d0%be%d0%b2%d0%ba%d0%b0-%d1%82%d1%80%d0%b0%d1%84%d0%b8%d0%ba%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h4>&lt;p>Как я уже упоминал выше - по умолчанию wireguard добавляет все маршруты, указанные в AllowedIPs в основную таблицу маршрутизации. Linux не поддерживает policy based routing, соответственно там нельзя создать &amp;ldquo;условные маршруты&amp;rdquo; вида &amp;ldquo;если клиент из офисной сети - маршрут в google пустить через VPN&amp;rdquo;. Default gateway через VPN вообще кончится потерей связи, так как сервер потеряет маршрут до VPN-сервера. Выход есть - и называется он &amp;ldquo;таблицы маршрутизации&amp;rdquo;. Linux поддерживает 255 таблиц маршрутизации (точнее - 251, так как есть зарезервированные таблицы, которые нельзя удалить). Для решения перечисленных выше проблем мы просто создадим отдельную таблицу маршрутизации, а потом с помощью iptables будем ловить трафик, предназначенный для VPN и отправлять его в нужную нам таблицу. При этом клиентская сеть сохранит доступ к серверу и мы сможем гибко настраивать потоки трафика. К примеру - пустить через VPN только трафик для google/youtube, а трафик в Яндекс пустить по старому маршруту по умолчанию. Создадим таблицу:&lt;/p>
+&lt;pre>&lt;code>client# echo &amp;quot;200 wire&amp;quot; &amp;gt;&amp;gt; /etc/iproute2/rt_tables
+Теперь создадим правило iptables, которое будет помечать нужный нам трафик. Этот трафик должен быть отправлен в VPN:
+client# iptables -I PREROUTING -t mangle -i eth0 -j MARK --set-mark 1
+&lt;/code>&lt;/pre>
+&lt;p>В данном примере я отправляю в VPN весь трафик, который приходит на интерфейс eth0 (в моем случае это внутренний интерфейс)&lt;/p>
+&lt;p>Теперь нам нужно правило (ip rule), которое перенаправит трафик с меткой 0х1 в таблицу wire:&lt;/p>
+&lt;pre>&lt;code>ip rule add fwmark 0x1 lookup wire
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы правило не потерялось при перезагрузке сервера или пересоздании интерфейса - я набросал простейший скрипт и положил его в &lt;code>/etc/network/if-up.d&lt;/code> (это пример для debian). Таким образом правило будет добавляться каждый раз, когда интерфейс переходит в активное состояние (UP):&lt;/p>
+&lt;pre>&lt;code>#!/bin/bash
+if [[ ! $(ip rule list | grep &amp;quot;fwmark 0x1 lookup wire&amp;quot;) ]]; then
+/bin/ip rule add fwmark 0x1 lookup wire
+fi
+&lt;/code>&lt;/pre>
+&lt;p>Этому скрипту нужно обязательно дать права на выполнение (chmod +x). Название скрипта не важно совершенно, главное - место, где файл лежит и права.&lt;/p>
+&lt;p>Еще одну проблему подарит rpfilter. В нормальной ситуации это полезная настройка - она позволяет отсекать фальшивые (forged) пакеты, которые пришли не на тот интефейс, с которого уходили. К примеру, у нас есть eth0 (192.168.1.1) и eth1 (172.16.1.1). Пакет отправляется с source address 192.168.1.2 (интерфейс eth0) а ответ приходит на eth1. Это или что-то странное (что редкость) или попытка взлома (что более вероятно). RPFilter отсекает такие пакеты. Проблема в том, что с точки зрения rpfilter пакеты, уходящие в другую таблицу - будут &amp;ldquo;проваливаться в никуда&amp;rdquo;, а ответные - &amp;ldquo;возникать из ниоткуда&amp;rdquo;. Чудеса телепортации rpfilter не любит, так что его придется отключить, иначе не видать вам трафика через vpn:&lt;/p>
+&lt;pre>&lt;code>client# sysctl -w net.ipv4.conf.eth0.rp_filter=2
+client# sysctl -w net.ipv4.conf.wg0.rp_filter=2
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы эти изменения не пропали при перезагрузке - добавим их в &lt;code>/etc/sysctl.conf&lt;/code>:&lt;/p>
+&lt;pre>&lt;code>client# printf &amp;quot;net.ipv4.conf.eth0.rp_filter=2\nnet.ipv4.conf.wg0.rp_filter=2&amp;quot; &amp;gt;&amp;gt; /etc/sysctl.conf
+&lt;/code>&lt;/pre>
+&lt;h4 id="лирическое-отступление-номер-два-добавляем-исключения-ipset" >Лирическое отступление номер два: добавляем исключения. IPSET.
+&lt;span>
+&lt;a href="#%d0%bb%d0%b8%d1%80%d0%b8%d1%87%d0%b5%d1%81%d0%ba%d0%be%d0%b5-%d0%be%d1%82%d1%81%d1%82%d1%83%d0%bf%d0%bb%d0%b5%d0%bd%d0%b8%d0%b5-%d0%bd%d0%be%d0%bc%d0%b5%d1%80-%d0%b4%d0%b2%d0%b0-%d0%b4%d0%be%d0%b1%d0%b0%d0%b2%d0%bb%d1%8f%d0%b5%d0%bc-%d0%b8%d1%81%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d1%8f-ipset">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h4>&lt;p>Иногда хочется пустить через VPN только часть трафика или наоборот - исключить часть трафика из прохождения через VPN. В принципе все это можно сделать исключительно правилами чистого iptables. Например, VPN для нескольких серверов будет выглядеть примерно так:&lt;/p>
+&lt;pre>&lt;code>iptables -I PREROUTING -t mangle -i eth0 -d 1.2.3.4 -j MARK --set-mark 1
+iptables -I PREROUTING -t mangle -i eth0 -d 1.2.5.5 -j MARK --set-mark 1
+iptables -I PREROUTING -t mangle -i eth0 -d 1.2.5.6 -j MARK --set-mark 1
+iptables -I PREROUTING -t mangle -i eth0 -d 1.2.6.7 -j MARK --set-mark 1
+iptables -I PREROUTING -t mangle -i eth0 -d 1.2.7.8 -j MARK --set-mark 1
+&lt;/code>&lt;/pre>
+&lt;p>Выглядит, честно говоря, ужасно. Что намного хуже - работать будет довольно медленно, поскольку &lt;em>каждый пакет проходит все правила iptables по очереди - пока не наткнется на правило, которое его обработает&lt;/em>. Пара тысяч правил застави задуматься даже весьма приличный сервер. Пара миллионов - уложит машину на лопатки, пакеты будут путешествовать по недрам netfilter минутами - это вечность. Для решения этой проблемы был придуман ipset. IPSet - это простой и очень эффективный способ хранить множество адресов в памяти компактно, а искать в этом списке - быстро. Память выделяется для ipset в момент создания set (даже, если set пуст). IPSet в кратчайшие сроки ответит на вопрос - есть ли в нем тот или иной адрес - время ответа приближено к O(1), то есть скорость проверки наличия адреса в ipset в общем-то не зависит от размера. В штатную поставку операционной системы ipset не входит, но ставится очень легко:&lt;/p>
+&lt;pre>&lt;code>client# apt-get install ipset
+&lt;/code>&lt;/pre>
+&lt;p>IPSet предоставляет разные варианты sets - они позволяют хранить разные вещи, но требуют разного количества памяти на одну запись. Для примера создадим set, который хранит подсети (адрес + маску):&lt;/p>
+&lt;pre>&lt;code>client# ipset create novpn hash:net hashsize 65535
+&lt;/code>&lt;/pre>
+&lt;p>это создаст set novpn емкостью 65535 записей. Изменить размер или тип сета после создания будет нельзя, так что выбирать придется с умом.&lt;/p>
+&lt;p>Удалим старое правило (которое отправляет в VPN весь трафик из внутренней сети) и добавим новое - оно будет отправлять трафик в VPN, если адреса нет в set-е novpn:&lt;/p>
+&lt;pre>&lt;code>client# iptables -t mangle -D PREROUTING 1
+client# iptables -I PREROUTING -t mangle -i eth0 -m set ! --match-set novpn dst -j MARK --set-mark 1
+&lt;/code>&lt;/pre>
+&lt;p>Теперь добавим какое-нибудь исключение. Например, avito.ru очень не любит дешевые VPS, на которых часто делают VPN-сервера - мошенники активно используют такие же сервера, чтобы воровать с авито данные, а потому большинство сетей крупнейших облачных провайдеров на авито просто забанены.&lt;/p>
+&lt;pre>&lt;code>client# ipset add novpn 185.89.12.0/24
+&lt;/code>&lt;/pre>
+&lt;p>Проверим:&lt;/p>
+&lt;pre>&lt;code>client# ipset list
+Name: novpn
+Type: hash:net
+Revision: 6
+Header: family inet hashsize 65536 maxelem 65536
+Size in memory: 1376
+References: 1
+Members:
+185.89.12.0/24
+&lt;/code>&lt;/pre>
+&lt;p>Теперь трафик к avito (185.89.12.0/24) пойдет напрямую, а весь остальной - через VPN.&lt;/p>
+&lt;p>К слову - можно сделать и наоборот, то есть пустить через VPN трафик, который попадает в ipset. Правило будет выглядеть чуть-чуть иначе:&lt;/p>
+&lt;pre>&lt;code>client# iptables -I PREROUTING -t mangle -i eth0 -m set --match-set tovpn dst -j MARK --set-mark 1
+&lt;/code>&lt;/pre>
+&lt;p>Все остальные принципы работы с ipset сохраняются. Рекомендую.&lt;/p>
+&lt;h3 id="клиент-отдельный-ноутбук-на-linux-roadwarrior" >Клиент: отдельный ноутбук на linux (roadwarrior)
+&lt;span>
+&lt;a href="#%d0%ba%d0%bb%d0%b8%d0%b5%d0%bd%d1%82-%d0%be%d1%82%d0%b4%d0%b5%d0%bb%d1%8c%d0%bd%d1%8b%d0%b9-%d0%bd%d0%be%d1%83%d1%82%d0%b1%d1%83%d0%ba-%d0%bd%d0%b0-linux-roadwarrior">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Wireguard ставится ровно так же, как в примере выше:&lt;/p>
+&lt;pre>&lt;code>notebook# apt-get install wireguard wireguard-dkms wireguard-tools
+&lt;/code>&lt;/pre>
+&lt;p>С ключами тоже никаких сюрпризов:&lt;/p>
+&lt;pre>&lt;code>notebook# umask 077
+notebook# wg genkey &amp;gt; notebook.priv
+notebook# wg pubkey &amp;lt; notebook.priv &amp;gt; notebook.pub
+&lt;/code>&lt;/pre>
+&lt;p>Ключи создаются точно так же. Пример конфига ноутбука (&lt;code>/etc/wireguard/wg0.conf&lt;/code>):&lt;/p>
+&lt;pre>&lt;code>[Interface]
+PrivateKey = &amp;lt;from notebook.priv&amp;gt;
+Address = 192.168.254.2/24
+[Peer]
+PublicKey = &amp;lt;from server.pub&amp;gt;
+Endpoint = 1.2.3.4:25967
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 21
+&lt;/code>&lt;/pre>
+&lt;p>Включаем командой &lt;code>wg-quick up wg0&lt;/code>. Выключаем, соответственно - &lt;code>wg-quick down wg0&lt;/code>. Интеграции с netmanager пока что нет, так что включать-выключать конфиг графической кнопкой не выйдет.&lt;/p>
+&lt;p>Не забудьте добавить содержимое &lt;code>notebook.pub&lt;/code> на сервер - в секцию &lt;code>[Peer]&lt;/code>.&lt;/p>
+&lt;h3 id="задача-со-звездочкой---подключаем-мобильное-устройство" >Задача со звездочкой - подключаем мобильное устройство
+&lt;span>
+&lt;a href="#%d0%b7%d0%b0%d0%b4%d0%b0%d1%87%d0%b0-%d1%81%d0%be-%d0%b7%d0%b2%d0%b5%d0%b7%d0%b4%d0%be%d1%87%d0%ba%d0%be%d0%b9---%d0%bf%d0%be%d0%b4%d0%ba%d0%bb%d1%8e%d1%87%d0%b0%d0%b5%d0%bc-%d0%bc%d0%be%d0%b1%d0%b8%d0%bb%d1%8c%d0%bd%d0%be%d0%b5-%d1%83%d1%81%d1%82%d1%80%d0%be%d0%b9%d1%81%d1%82%d0%b2%d0%be">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Wireguard есть как для iOS, так и для android. В первом случае он сделан как userspace процесс, но протокол реализует тот же. Работает, конечно, медленнее, но не думаю, что это будет заметно. Ставится как любое типичное приложение, а вот настройки создаются интересно.&lt;/p>
+&lt;p>Создадим на сервере ключи для мобильного:&lt;/p>
+&lt;pre>&lt;code>server# wg genkey | tee mobile.priv | wg pubkey &amp;gt; mobile.pub
+&lt;/code>&lt;/pre>
+&lt;p>Добавим еще один peer в конфиг сервера:&lt;/p>
+&lt;pre>&lt;code>[Peer]
+PublicKey = &amp;lt;from mobile.pub&amp;gt;
+AllowedIPs = 192.168.254.3/32
+&lt;/code>&lt;/pre>
+&lt;p>Перезапустим wg:&lt;/p>
+&lt;pre>&lt;code>server# wg-quick down wg0
+server# wg-quick up wg0
+&lt;/code>&lt;/pre>
+&lt;p>создадим конфиг для мобильного с примерно таким содержимым:&lt;/p>
+&lt;pre>&lt;code>[Interface]
+PrivateKey = &amp;lt;from mobile.priv&amp;gt;
+Address = 192.168.254.3/32
+DNS = 8.8.8.8
+[Peer]
+PublicKey = &amp;lt;from server.pub&amp;gt;
+Endpoint = 1.2.3.4:25967
+AllowedIPs = 0.0.0.0/0
+&lt;/code>&lt;/pre>
+&lt;p>В целом все выглядит знакомо. Теперь нужно передать конфиг на мобильное устройство. Проще всего это сделать, закодировав конфиг в QR-code:&lt;/p>
+&lt;pre>&lt;code>server# qrencode -t ansiutf8 &amp;lt; mobile.conf
+&lt;/code>&lt;/pre>
+&lt;p>На выходе будет картинка - QR-код. Открываем wireguard на мобильном, жмем + -&amp;gt; from QR code -&amp;gt; показываем картинку. Готово, мобильное устройство получило конфиг и теперь VPN можно включать штатными средствами.&lt;/p>
+&lt;p>Ключи mobile и конфиг рекомендуется удалить с сервера - чтобы никто их не украл.&lt;/p>
+&lt;h2 id="выводы" >Выводы
+&lt;span>
+&lt;a href="#%d0%b2%d1%8b%d0%b2%d0%be%d0%b4%d1%8b">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>WireGuard - прекрасная альтернатива openvpn уже сейчас. Простой, легко и быстро настраиваемый сервис. Работает очень стабильно, при этом - очень быстро. Я горячо рекомендую его как замену openvpn - как в корпоративном секторе, так и для личного использования.&lt;/p>
+&lt;p>Безопасного вам интернета!&lt;/p></description></item></channel></rss>

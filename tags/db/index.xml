@@ -1,0 +1,1059 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>db on SRE Blog</title><link>https://prudnitskiy.pro/tags/db/</link><description>SRE Blog (db)</description><generator>Hugo -- gohugo.io</generator><language>ru-ru</language><lastBuildDate>Wed, 22 Aug 2018 12:00:00 +0000</lastBuildDate><atom:link href="https://prudnitskiy.pro/tags/db/index.xml" rel="self" type="application/rss+xml"/><item><title>Repmgr: управление репликацией postgresql</title><link>https://prudnitskiy.pro/post/2018-08-22-repmgr/</link><pubDate>Wed, 22 Aug 2018 12:00:00 +0000</pubDate><guid>https://prudnitskiy.pro/post/2018-08-22-repmgr/</guid><description>&lt;p>PostgreSQL - это мощная и очень развитая база данных, функциональная и дружелюбная. В комплект входит надежный и очень удобный механизм потоковой репликации (я писал о нем &lt;a href="https://prudnitskiy.pro/2018-01-05-pgsql-replica">здесь&lt;/a>). Не смотря на мощь и удобство – этот инструмент сложен в настройке и не всегда понятен, особенно, если серверов баз много. Все становится еще хуже, если у вас сложная схема репликации с каскадами (master &amp;gt; slave &amp;gt; slave of slave). Чтобы облегчить жизнь DBA в таких ситуациях – известные специалисты по консалтингу Postgres, компания 2ndQuadrant придумали repmgr – специальный инструмент для управления настройками репликации для PostgreSQL.&lt;/p>
+&lt;p>Repmgr может:&lt;/p>
+&lt;ul>
+&lt;li>облегчить создание новых серверов&lt;/li>
+&lt;li>облегчить переключение на другой сервер (promote)&lt;/li>
+&lt;li>автоматизировать переключение на новый сервер при отказе старого (failover)&lt;/li>
+&lt;li>вести аудит событий репликации в кластере (event flow)&lt;/li>
+&lt;li>официально repmgr поддерживает мультимастер с помощью механизма bidirectional replication. Это жуткий грязный хак, и я очень не рекомендую его использовать&lt;/li>
+&lt;/ul>
+&lt;p>Repmgr требует (ограничения):&lt;/p>
+&lt;ul>
+&lt;li>postgresql 9 или 10 (так как только в 9 версии появилась потоковая репликаця)&lt;/li>
+&lt;li>доступ с каждого узла кластера на каждый узел кластера по протоколам SSH (непривелигированый) и postgresql (5432)&lt;/li>
+&lt;li>одинаковую версию Postgres (только major)&lt;/li>
+&lt;li>одинаковую архитектуру сервера (вы не сможете реплицировать данные с ARM на AMD64)&lt;/li>
+&lt;li>одинаковую версию repmgr на всех узлах кластера (одинаковость должна быть &lt;em>полной&lt;/em>)&lt;/li>
+&lt;li>пользователя с правами SUPERUSER, от имени которого repmgr будет проводить операции. Пароль от этого пользователя хранится в файловой системе кластера в открытом виде.&lt;/li>
+&lt;/ul>
+&lt;h2 id="установка" >Установка
+&lt;span>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Repmgr поставляется в виде пакета и входит в стандартный для всех пользователей postgresql репозиторий PGDG. В данной статье я продемонстрирую настройку для debian, но для centos он настраивается практически так же – меняются только пути доступа к файлам. Добавим репозиторий:&lt;/p>
+&lt;pre>&lt;code>sh -c 'echo &amp;quot;deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main&amp;quot; &amp;gt; /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+apt-get update
+&lt;/code>&lt;/pre>
+&lt;p>Теперь можно установить необходимые для работы пакеты:&lt;/p>
+&lt;pre>&lt;code>apt-get install postgresql-10 postgresql-10-repmgr -y
+&lt;/code>&lt;/pre>
+&lt;p>Для repmgr важно, чтобы все хосты видели друг друга по hostname. Я рекомендую иметь внутренний DNS для решения этой задачи, но если у вас по какой-то причине его нет – придется добавить имена и адреса серверов кластера в &lt;code>/etc/hosts&lt;/code>. Например:&lt;/p>
+&lt;pre>&lt;code>192.168.0.17 pg1.lab.office pg1
+192.168.0.18 pg2.lab.office pg2
+192.168.0.19 pg3.lab.office pg3
+&lt;/code>&lt;/pre>
+&lt;p>Для того, что бы repmgr мог копировать базу с одного сервера на другой – пользователю repmgrd нужен доступ по ssh без ввода пароля. Для этого на каждом из серверов нужно сгенерировать ssh public key. Этот public key нужно положить на все остальные сервера кластера в файл &lt;code>~/.ssh/authorized_keys&lt;/code>. Это нужно сделать для пользователя, от которого будет запущен repmgr. Обычно это тот же пользователь, от имени которого запущен postgres. Создадим ключи на каждом сервере:&lt;/p>
+&lt;pre>&lt;code>sudo -u postgres ssh-keygen -t rsa
+Generating public/private rsa key pair.
+Enter file in which to save the key (/var/lib/postgresql/.ssh/id_rsa):
+Created directory '/var/lib/postgresql/.ssh'.
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /var/lib/postgresql/.ssh/id_rsa.
+Your public key has been saved in /var/lib/postgresql/.ssh/id_rsa.pub.
+The key fingerprint is:
+SHA256:oqFJ3/Gr8oeBgQpAsKSlImbUOLroa/YaFbJ8AxlsBng postgresql@pg1
+&lt;/code>&lt;/pre>
+&lt;p>Публичный ключ из файла &lt;code>/var/lib/postgresql/.ssh/id_rsa.pub&lt;/code> надо добавить на все остальные сервера кластера, в файл &lt;code>~/.ssh/authorized_keys&lt;/code>. Заодно поправим права:&lt;/p>
+&lt;pre>&lt;code>#на сервере pg1
+echo &amp;quot;ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCoavDuAETBMZBD0NwRvSEDYL1avCIkSLzxMG50L6b7nIeasrfv90AGjARxID9THkUXDNkdKhfRIu+WGFYxlgZ6zqPQCyZyQvKjcJr325pbo9it474LpLpeHuPrXdeMSzSilxvAKvYX/ml7L9KtOnYMDusFK1XdGeV25qcj2OSLWBY168riW5vvGWFYTCdU6q9eQ+JN2zCpoZzXKNqhh+dpItt1QiKRw84u7EtUW6U02tw1V5nmO+HGyG2A50S5/JNS7lbj/7IYAXwIgtlBrf3mzCPCIoHbjlSny/V6sp3S7QWNrxynpkI7o+oMvJq5frAEpn0syiUmtOz56Qnw67GP postgres@pg2&amp;quot; &amp;gt;&amp;gt; /var/lib/postgresql/.ssh/authorized_keys
+echo &amp;quot;ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDfl8Rg47u97kGUPf7OwF4jeGhcIxVtWEVDk1AKJt5o3Y65v5jzrjoI5F0YrboEzr+oPu5BV24M6dOI5u3ysRBX/osQI2fBlt+hotAIWXPiP8UUy9CgIdQH59h/MJcp3jPH0KYQTwF8WJDr1skUcUzKGswuofBaElm5TpME+Oz2vygXEl2vL9Pfo5kfdsk9ov58cUJNlDGtxTo/Rzw9XFRnkBimzwvem/gmdpYBFb45ulsbLVmdBcv+QTU7PQ+knqIyERboTecS8wBYoKnlCTA0LZscvyeHjKwILSl9ZFfir3CRdYtxNqx4Zk/hMphx4Bt7hn96KUXRiMf3ODpd2yp1 postgres@pg3&amp;quot; &amp;gt;&amp;gt; /var/lib/postgresql/.ssh/authorized_keys
+chown postgres /var/lib/postgresql/.ssh/authorized_keys
+chmod 600 /var/lib/postgresql/.ssh/authorized_keys
+&lt;/code>&lt;/pre>
+&lt;p>Убедимся, что доступ есть:&lt;/p>
+&lt;pre>&lt;code>root@pg1:~# sudo -u postgres ssh pg2.lab.office -x 'w'
+09:04:07 up 3 days, 23:48, 1 user, load average: 0.00, 0.00, 0.00
+USER TTY FROM LOGIN@ IDLE JCPU PCPU WHAT
+logan pts/0 192.168.0.70 14:28 1:19 0.22s 0.02s sshd: logan [priv]
+&lt;/code>&lt;/pre>
+&lt;p>Для остальных серверов делаем по аналогии.&lt;/p>
+&lt;p>Для того, чтобы процесс repmgr мог сам перезапускать постгрес - ему нужны соответствующие права. Чтобы их дать - создадим файл &lt;code>/etc/sudoers.d/repmgr&lt;/code> и впишем туда:&lt;/p>
+&lt;pre>&lt;code>Cmnd_Alias PGRE = /bin/systemctl status postgresql, \
+/bin/systemctl start postgresql, \
+/bin/systemctl stop postgresql, \
+/bin/systemctl restart postgresql, \
+/bin/systemctl reload postgresql
+postgres ALL=(ALL) NOPASSWD: PGRE
+&lt;/code>&lt;/pre>
+&lt;p>Это позволит пользователю postgres перезапускать процесс сервера postgres.&lt;/p>
+&lt;p>Теперь нам надо настроить сам postgresql. Обязательный минимум:&lt;/p>
+&lt;ul>
+&lt;li>доступность из сети (директива &lt;code>listen_addresses&lt;/code>)&lt;/li>
+&lt;li>репликация (&lt;code>wal_level&lt;/code>, &lt;code>archive_mode&lt;/code>)&lt;/li>
+&lt;li>лимит &lt;code>max_wal_senders&lt;/code> - как минимум на 1 больше количества серверов в кластере&lt;/li>
+&lt;li>&lt;code>hot_standby&lt;/code> - для серверов в режиме slave.&lt;/li>
+&lt;li>права на репликацию в hba&lt;/li>
+&lt;/ul>
+&lt;p>Если вы строите кластер на debian - настройки надо скопировать на все сервера кластера. Для centos это не обязательно, так как файл настроек лежит прямо в data directory и при клонировании repmgr вытащит файлы.&lt;/p>
+&lt;p>Пример настроек - &lt;code>/etc/postgresql/10/main/postgresql.conf&lt;/code>:&lt;/p>
+&lt;pre>&lt;code># тут приведены не все настройки, а только то, что я поменял
+# часть настроек в файле закомментирована, а в части указаны другие значения.
+# Пользуйтесь поиском.
+listen_addresses = '*'
+wal_level = replica
+archive_mode = on
+archive_command = 'cp %p /var/lib/pg-arch/%f'
+max_wal_senders = 4
+hot_standby = on
+&lt;/code>&lt;/pre>
+&lt;p>В данном примере мы не удаляем архивированные сегменты, а перемещаем их папку &lt;code>/var/lib/pg-arch/&lt;/code>. Это позволит восстановить &amp;ldquo;отставший&amp;rdquo; slave. Подробнее я писал &lt;a href="https://prudnitskiy.pro/2018-01-05-pgsql-replica">здесь&lt;/a>. Эту папку нужно создать (владелец - postgres, права доступа - 700). Папку нужно периодически чистить – postgres сам не очищает архивы. В упомянутой выше статье вы найдете детальное описание.&lt;/p>
+&lt;p>Пример настроек hba. В данном примере пользователь БД называется &lt;code>repmgr&lt;/code>. Служебная база repmgr - &lt;code>repmgrdb&lt;/code>:&lt;/p>
+&lt;pre>&lt;code># Не менять! сломаются локальные операции!
+local all postgres peer
+# TYPE DATABASE USER ADDRESS METHOD
+local all all md5
+host all all 127.0.0.1/32 md5
+host all all ::1/128 md5
+# replication settings
+local replication all peer
+host replication all 127.0.0.1/32 md5
+host replication all ::1/128 md5
+host repmgrdb repmgr 192.168.0.0/24 md5
+host replication repmgr 192.168.0.0/24 md5
+#remote access to server cluster. any DB, any user, any host, password required
+host all all 0.0.0.0/0 md5
+&lt;/code>&lt;/pre>
+&lt;p>С настройкой postgres закончили, перезапускаем сервер и создаем служебную базу и пользователя. Пароль для пользователя лучше сделать посложнее:&lt;/p>
+&lt;pre>&lt;code>service postgresql status
+sudo -u postgres psql
+psql (10.4 (Debian 10.4-2.pgdg90+1))
+Type &amp;quot;help&amp;quot; for help.
+postgres=# create user repmgr with superuser;
+postgres=# alter role repmgr with password 'Ahn7yaechie6hoe0av8eF0ei';
+postgres=# create database repmgrdb owner repmgr;
+postgres=# \q
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы repmgr мог обращаться к серверу БД и ему не требовалось вводить пароль – нужно создать файл &lt;code>/var/lib/postgresql/.pgpass&lt;/code>. Владельцем файла должен быть пользователь postgres, права - 0600 (иначе он игнорируется). Структура файла - &lt;code>IP:port:DB:user:password&lt;/code>. &lt;code>*&lt;/code> означает &amp;ldquo;любое&amp;rdquo;. К сожалению pgpass не в состоянии работать с CIDR, то есть задать адрес как &lt;code>192.168.0.*&lt;/code> можно, а &lt;code>192.168.0.0/24&lt;/code> – нельзя. Пример файла:&lt;/p>
+&lt;pre>&lt;code>*:5432:repmgrdb:repmgr:Ahn7yaechie6hoe0av8eF0ei
+*:5432:replication:repmgr:Ahn7yaechie6hoe0av8eF0ei
+&lt;/code>&lt;/pre>
+&lt;p>Вторая запись нужна для самого процесса репликации.&lt;/p>
+&lt;p>Теперь настроим repmgr. Его настройки в debian лежат в файле &lt;code>/etc/repmgr.conf&lt;/code>. Пример с комментариями:&lt;/p>
+&lt;pre>&lt;code># ID узла (сервера). В рамках кластера обязательно уникальный
+node_id=1
+# hostname. Остальные узлы должны иметь возможность найти этот именно по этому имени.
+node_name='pg1.lab.office'
+# строка подключения к БД
+conninfo='host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2'
+# директория с данными postgres.
+data_directory='/var/lib/postgresql/10/main/'
+# режим репликации. Пока что поддерживается только этот
+replication_type=physical
+# log file. Не забудьте создать папку для него.
+log_file='/var/log/repmgr/repmgr.log'
+# записывать статус каждые 5 минут (300 секунд)
+log_status_interval=300
+# где находятся bin-файлы postgres.
+pg_bindir='/usr/lib/postgresql/10/bin/'
+# не использовать password из conninfo (строки выше)
+# мы храним пароль в .pgpass, это безопаснее. Потому - false
+use_primary_conninfo_password=false
+ssh_options='-q -o ConnectTimeout=10'
+# режим failover
+failover=manual
+# очередность выборов мастера в случае отказа
+# эта настройка и последующие применимы только если failover - auto
+priority=100
+reconnect_attempts=3
+reconnect_interval=5
+promote_command='/usr/bin/repmgr -f /etc/repmgr.conf standby promote --log-to-file'
+follow_command='/usr/bin/repmgr standby follow -f /etc/repmgr.conf --log-to-file --upstream-node-id=%n'
+# команды запуска, остановки и перезапуска сервиса. Должны соответствовать тому, что мы вписали в sudo.
+service_start_command = 'sudo -n /bin/systemctl start postgresql'
+service_stop_command = 'sudo -n /bin/systemctl stop postgresql'
+service_restart_command = 'sudo -n /bin/systemctl restart postgresql'
+service_reload_command = 'sudo -n /bin/systemctl reload postgresql'
+&lt;/code>&lt;/pre>
+&lt;p>Теперь можно зарегистрировать первый сервер в кластере:&lt;/p>
+&lt;pre>&lt;code>sudo -u postgres repmgr -f /etc/repmgr.conf primary register
+&lt;/code>&lt;/pre>
+&lt;p>Проверим, что он там появился:&lt;/p>
+&lt;pre>&lt;code>root@pg1:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ID | Name | Role | Status | Upstream | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+1 | pg1.lab.office | primary | * running | | default | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+&lt;/code>&lt;/pre>
+&lt;p>Все ок. Теперь настроим остальные два сервера. Они настраиваются по аналогии с первым сервером. Только в конфиге repmgr.conf нужно поменять node_id, node_name и conninfo. На 2 и 3 серверах запускать postgres не нужно.&lt;/p>
+&lt;p>Удалим существующий data-dir и склонируем базу с мастера:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# service postgresql stop
+root@pg2:~# rm -rf /var/lib/postgresql/10/main/*
+root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf -h pg1.lab.office -U repmgr -d repmgrdb standby clone
+NOTICE: destination directory &amp;quot;/var/lib/postgresql/10/main/&amp;quot; provided
+NOTICE: starting backup (using pg_basebackup)...
+HINT: this may take some time; consider using the -c/--fast-checkpoint option
+NOTICE: standby clone (using pg_basebackup) complete
+NOTICE: you can now start your PostgreSQL server
+HINT: for example: sudo -n /bin/systemctl start postgresql
+HINT: after starting the server, you need to register this standby with &amp;quot;repmgr standby register&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Запускаем сервер, регистрируемся:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# service postgresql start
+root@pg2:~# sudo -u postgres /usr/bin/repmgr standby register
+NOTICE: standby node &amp;quot;pg2.lab.office&amp;quot; (id: 2) successfully registered
+&lt;/code>&lt;/pre>
+&lt;p>Проверяем, что изменилось:&lt;/p>
+&lt;pre>&lt;code>root@pg1:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ID | Name | Role | Status | Upstream | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+1 | pg1.lab.office | primary | * running | | default | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+2 | pg2.lab.office | standby | running | pg1.lab.office | default | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+&lt;/code>&lt;/pre>
+&lt;p>Третий сервер запускаем по аналогии со вторым.&lt;/p>
+&lt;h2 id="failover" >Failover
+&lt;span>
+&lt;a href="#failover">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Итак, мастер сломался и надо переключится на slave:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ID | Name | Role | Status | Upstream | Location | Connection string
+----+----------------+---------+---------------+----------------+----------+-------------------------------------------------------------------
+1 | pg1.lab.office | primary | ? unreachable | | default | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+2 | pg2.lab.office | standby | running | pg1.lab.office | default | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+3 | pg3.lab.office | standby | running | pg1.lab.office | default | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+WARNING: following issues were detected
+- when attempting to connect to node &amp;quot;pg1.lab.office&amp;quot; (ID: 1), following error encountered :
+&amp;quot;could not connect to server: Connection refused
+Is the server running on host &amp;quot;pg1.lab.office&amp;quot; (192.168.0.17) and accepting
+TCP/IP connections on port 5432?&amp;quot;
+- node &amp;quot;pg1.lab.office&amp;quot; (ID: 1) is registered as an active primary but is unreachable
+&lt;/code>&lt;/pre>
+&lt;p>Прежде чем продолжить – обязательно убедитесь, что старый мастер (pg1) отключен и не &amp;ldquo;оживет&amp;rdquo; в самый неподходящий момент. Repmgr не умеет работать с fencing-ом и вы можете потерять часть данных.&lt;/p>
+&lt;p>Повышаем pg2 до мастера:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf standby promote
+NOTICE: promoting standby to primary
+DETAIL: promoting server &amp;quot;pg2.lab.office&amp;quot; (ID: 2) using &amp;quot;/usr/lib/postgresql/10/bin/pg_ctl -w -D '/var/lib/postgresql/10/main/' promote&amp;quot;
+waiting for server to promote.... done
+server promoted
+NOTICE: STANDBY PROMOTE successful
+DETAIL: server &amp;quot;pg2.lab.office&amp;quot; (ID: 2) was successfully promoted to primary
+&lt;/code>&lt;/pre>
+&lt;p>Проверяем статус:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ID | Name | Role | Status | Upstream | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+1 | pg1.lab.office | primary | - failed | | default | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+2 | pg2.lab.office | primary | * running | | default | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+3 | pg3.lab.office | standby | running | pg1.lab.office | default | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+&lt;/code>&lt;/pre>
+&lt;p>pg3 по-прежнему ждет данных от pg1. Его нужно переключить на новый мастер:&lt;/p>
+&lt;pre>&lt;code>root@pg3:~# sudo -u postgres /usr/bin/repmgr standby follow -f /etc/repmgr.conf --upstream-node-id=2
+NOTICE: setting node 3's primary to node 2
+NOTICE: restarting server using &amp;quot;sudo -n /bin/systemctl restart postgresql&amp;quot;
+NOTICE: STANDBY FOLLOW successful
+DETAIL: node 3 is now attached to node 2
+&lt;/code>&lt;/pre>
+&lt;p>Проверим состояние кластера:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ID | Name | Role | Status | Upstream | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+1 | pg1.lab.office | primary | - failed | | default | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+2 | pg2.lab.office | primary | * running | | default | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+3 | pg3.lab.office | standby | running | pg2.lab.office | default | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+WARNING: following issues were detected
+- when attempting to connect to node &amp;quot;pg1.lab.office&amp;quot; (ID: 1), following error encountered :
+&amp;quot;could not connect to server: Connection refused
+Is the server running on host &amp;quot;pg1.lab.office&amp;quot; (192.168.0.17) and accepting
+TCP/IP connections on port 5432?&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь мы можем убрать старый сервер из конфигурации:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf primary unregister --node-id=1
+&lt;/code>&lt;/pre>
+&lt;p>Проверяем еще раз:&lt;/p>
+&lt;pre>&lt;code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ID | Name | Role | Status | Upstream | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+2 | pg2.lab.office | primary | * running | | default | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+3 | pg3.lab.office | standby | running | pg2.lab.office | default | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+&lt;/code>&lt;/pre>
+&lt;p>Теперь можно спокойно чинить pg1, без риска что он внезапно вернется в сеть и будет конфликт записи в slave.&lt;/p>
+&lt;h2 id="возврат-мастера" >Возврат мастера
+&lt;span>
+&lt;a href="#%d0%b2%d0%be%d0%b7%d0%b2%d1%80%d0%b0%d1%82-%d0%bc%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Самый простой способ вернуть старый сервер - удалить его datadir и зарегистрировать заново как slave:&lt;/p>
+&lt;pre>&lt;code>root@pg1:~# rm -rf /var/lib/postgresql/10/main/*
+root@pg1:~# sudo -u postgres repmgr -f /etc/repmgr.conf -h pg2.lab.office -U repmgr -d repmgrdb standby clone
+NOTICE: destination directory &amp;quot;/var/lib/postgresql/10/main/&amp;quot; provided
+NOTICE: starting backup (using pg_basebackup)...
+HINT: this may take some time; consider using the -c/--fast-checkpoint option
+NOTICE: standby clone (using pg_basebackup) complete
+NOTICE: you can now start your PostgreSQL server
+HINT: for example: sudo -n /bin/systemctl start postgresql
+HINT: after starting the server, you need to register this standby with &amp;quot;repmgr standby register&amp;quot;
+root@pg1:~# service postgresql start
+root@pg1:~# sudo -u postgres /usr/bin/repmgr standby register
+WARNING: --upstream-node-id not supplied, assuming upstream node is primary (node ID 2)
+NOTICE: standby node &amp;quot;pg1.lab.office&amp;quot; (id: 1) successfully registered
+&lt;/code>&lt;/pre>
+&lt;h2 id="заключение" >Заключение
+&lt;span>
+&lt;a href="#%d0%b7%d0%b0%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Repmgr - простой, понятный инструмент, который сильно облегчает операции в master-slave конфигурациях. Он не позволит полностью автоматизировать защиту от отказов (для этого нужны другие инструменты), но поможет в простых конфигурациях. Я очень рекомендую использовать его – самостоятельно или в сочетании с pgpool-II. В таком варианте pgpool отвечает за балансировку запросов, фенсинг и инициирует failover, когда это необходимо. Repmgr отвечает за сам низкоуровневый процесс failover (и это намного лучше, чем рекомендуемый pgpool набор жутковатых скриптов!).&lt;/p>
+&lt;p>При этом я очень не рекомендую:&lt;/p>
+&lt;ul>
+&lt;li>использовать автоматический failover средствами repmgr. Строго говоря – он не работает. Для работы repmgr нужен работающий сервер postgresql, и если postgresql master упал – repmgr не в состоянии самостоятельно переключится (из-за упавшего мастера)&lt;/li>
+&lt;li>использовать bidirectional multimaster. Эта функция заявлена в описании, но работает крайне плохо - сервера теряют связь друг с другом и часто трут конфликтующие данные. Проверено до версии &lt;strong>4.0.5&lt;/strong>&lt;/li>
+&lt;/ul></description></item><item><title>Потоковая репликация в PostgreSQL – короткое введение</title><link>https://prudnitskiy.pro/post/2018-01-05-pgsql-replica/</link><pubDate>Fri, 05 Jan 2018 21:00:00 +0000</pubDate><guid>https://prudnitskiy.pro/post/2018-01-05-pgsql-replica/</guid><description>&lt;p>PostgreSQL – великолепная база данных, во многом – лучше MySQL. При этом у PostgreSQL довольно мало документации (кроме официальной) – MySQL раньше стал популярен и сейчас элементарно чаще встречается. Руководств по настройке репликации в MySQL - полный интернет, а для PostgreSQL на русском я пошаговых инструкций просто не видел. Это – именно такая инструкция.&lt;/p>
+&lt;h2 id="мотивация" >Мотивация
+&lt;span>
+&lt;a href="#%d0%bc%d0%be%d1%82%d0%b8%d0%b2%d0%b0%d1%86%d0%b8%d1%8f">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Репликация – это очень просто. Репликация означает копирование состояние одного сервера на другой. То есть – любые изменения, примененные на основной сервер (master) будут скопированы на его &amp;ldquo;заместителя&amp;rdquo; (slave). Для чего это нужно:&lt;/p>
+&lt;ul>
+&lt;li>Для распределения нагрузки. Slave не может записывать данные, но с него можно эти данные читать. По личному опыту, более 80% нагрузки на базу данных – это именно чтение в том или ином виде. Slave (или несколько) позволяют разгрузить мастер. Установка нескольких дешевых серверов чаще всего обходится дешевле, чем обновления одного, но дорогого (горизонтальное масштабирование дешевле вертикального. В некоторых случаях мешает закон Амдаля, но у нас не тот случай).&lt;/li>
+&lt;li>Для построения отказоустойчивых систем. В случае, если с мастером &lt;strong>что-то случилось&lt;/strong> – превратить slave в master можно буквально за секунды, это снижает время простоя. Восстановление из резервной копии займет много больше времени. Кроме того, состояние slave-а будет максимально приближено к состоянию master-а на момент отказа. Бэкапы обычно делаются по расписанию. То есть – все данные, записанные после создания резервной копии и до отказа мастера можно считать потерянными безвозвратно.&lt;/li>
+&lt;/ul>
+&lt;p>Как и у всякой технологии, у репликации есть ограничения:&lt;/p>
+&lt;ul>
+&lt;li>Репликация в PostgreSQL – исключительно однонаправленная (master -&amp;gt; slave). PostgreSQL не поддерживает мультимастер (есть внешние решения, но они выходят за рамки этой статьи)&lt;/li>
+&lt;li>Репликация дополняет бэкап, но не заменяет его. Реплика спасет данные, если с мастер-сервером что-то случилось: отказ электричества, сервер сгорел, жесткие диски умерли, пожар в ЦОД, правоохранительные органы изъяли оборудование и т.д. Репликация никак не поможет при логической ошибке (код запорол данные) или ошибке оператора (&amp;ldquo;призрак человека с консолью&amp;rdquo;).&lt;/li>
+&lt;li>Особенность именно PostgreSQL - репликация возможна только всего сервера целиком, нельзя выбрать базы, которые будут реплицироваться (или не будут).&lt;/li>
+&lt;li>По умолчанию репликация - асинхронная. Это значит, что мастер пишет данные постоянно, а slave вытаскивает изменения и применяет их у себя по мере возможности. Вообще, в норме это не вызывает проблем. Но, если вдруг у slave возникли с этим проблемы (мастер несравнимо мощнее и slave не успевает применять изменения, или проблемы с сетью между мастером и slave) – master &amp;ldquo;убежит&amp;rdquo; вперед. Данные при этом потеряны не будут, и slave догонит мастер, как только сможет. Такую ситуацию несложно отслеживать (дальше покажу, как), просто нужно иметь это ввиду. Репликацию можно сделать синхронной, чтобы гарантировать абсолютную консистентность данных между серверами, но это удорожает транзакции – производительность записи упадет, а нагрузка – вырастет.&lt;/li>
+&lt;li>Репликация использует отдачу WAL-сегментов с мастера на slave-ы. Эти сегменты надо на мастере где-то хранить, то есть нужно запланировать дополнительное место для них.&lt;/li>
+&lt;li>Репликация возможна только между серверами с общей мажорной версией (то есть реплицироваться 9.5 -&amp;gt; 9.5 можно, а с 9.4 -&amp;gt; 10.0 – нельзя). На всякий случай напомню, что до версии 10.0 обновления 9.4 -&amp;gt; 9.5 считались мажорными, а не минорными. У разных версий разный формат хранения данных.&lt;/li>
+&lt;li>потоковая репликация возможна только в PostgreSQL 9 и выше. Она не работает в 7 и 8 версиях.&lt;/li>
+&lt;/ul>
+&lt;h2 id="мутные-технические-подробности" >Мутные технические подробности
+&lt;span>
+&lt;a href="#%d0%bc%d1%83%d1%82%d0%bd%d1%8b%d0%b5-%d1%82%d0%b5%d1%85%d0%bd%d0%b8%d1%87%d0%b5%d1%81%d0%ba%d0%b8%d0%b5-%d0%bf%d0%be%d0%b4%d1%80%d0%be%d0%b1%d0%bd%d0%be%d1%81%d1%82%d0%b8">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Каждый postgresql-сервер пишет все изменения сначала в WAL (write-ahead log), и только затем – применяет изменения в реальное пространство базы данных. Это позволяет гарантировать целостность данных и отсутствие конфликтов изменений в табличном пространстве. В случае, если сервер по какой-то причине перезагрузился – он сначала проверяет текущий номер транзакции, примененный к табличному пространству (то есть - успешно завершенная запись). Затем сервер проверят WAL и дописывает разницу из WAL в tablespace. Номер транзакции всегда растет монотонно, что исключает конфликты очередности применения. Запись в WAL обходится дешевле, так как в WAL записываются только изменения, и они туда только последовательно пишутся (и эпизодически – последовательно читаются). Когда все транзакции из файла WAL считаются успешно примененными на сервер – WAL помечается как готовый (full) и удаляется. В случае репликации slave получает копию WAL с мастера (через специальный процесс wal streamer service - по одному на каждый slave). Для того, чтобы синхронизировать мастер со slave, нужно:&lt;/p>
+&lt;ul>
+&lt;li>скопировать текущее состояние мастера на slave.&lt;/li>
+&lt;li>включить на мастере wal streaming (вещание wal-файлов)&lt;/li>
+&lt;li>дождаться, пока slave не подключится к мастеру и не вытянет изменения и не применит их&lt;/li>
+&lt;/ul>
+&lt;h2 id="пошаговое-руководство" >Пошаговое руководство
+&lt;span>
+&lt;a href="#%d0%bf%d0%be%d1%88%d0%b0%d0%b3%d0%be%d0%b2%d0%be%d0%b5-%d1%80%d1%83%d0%ba%d0%be%d0%b2%d0%be%d0%b4%d1%81%d1%82%d0%b2%d0%be">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>В примере будут участвовать два сервера:&lt;/p>
+&lt;ul>
+&lt;li>master.db.local (10.0.0.1)&lt;/li>
+&lt;li>slave.db.local (10.0.0.2)&lt;/li>
+&lt;/ul>
+&lt;p>Для упрощения считаем, что мастер уже настроен, запущен и работает. Slave – это пустой сервер без данных вообще, там только установлена ОС и сам postgres. Версии PostgreSQL на обоих серверах имеют одинаковый номер версии в майоре (к примеру 9.6.0 на master и 9.6.4 на slave). В данном примере я использую Debian и PostgreSQL 9.6. Для других ОС и версий PostgreSQL настройки отличатся не будут, но могут отличаться пути, по которым лежат конфиги и файлы данных.&lt;/p>
+&lt;h3 id="настройка-master" >Настройка master
+&lt;span>
+&lt;a href="#%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0-master">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Для начала поправим postgresql.conf. В Debian он находится по адресу &lt;code>/etc/postgresql/VERSION/CLUSTER/postgresql.conf&lt;/code>. В нашем примере это &lt;code>/etc/postgresql/9.6/master/postgresql.conf&lt;/code>&lt;/p>
+&lt;pre>&lt;code>#master должен быть доступен по сети для slave
+#listen_addresses может принимать несколько значений (через запятую)
+#можно поставить * - postgres будет доступен на всех сетевых интерфейсах
+listen_addresses = '10.0.0.1'
+#режим хранения WAL-сегментов. Для репликации – только hot_standby
+wal_level = hot_standby
+#максимальное количство wal_sender.
+#это максимум slave-ов, который сможет подключится к этому серверу
+max_wal_senders = 5
+#сколько заполненных WAL-сегментов хранить на мастере перед удалением
+#число можно подобрать только экспериментально (больше изменений – больше WAL надо хранить)
+wal_keep_segments = 32
+#папка для архива. Удаленный WAL-сегмент будет скопирован туда
+#архивом можно пользоваться для восстановления slave, если slave не успел выкачать WAL с мастера, а мастер его уже удалил
+#там должно быть много места – сам postgres не будет чистить свой архив
+archive_mode = on
+archive_command = 'cp %p /var/lib/pg-archive/%f'
+&lt;/code>&lt;/pre>
+&lt;p>Теперь нужно разрешить slave-у подключаться к мастеру для репликации. Для этого отредактируем pg_hba.conf (лежит там же, где postgresql.conf), и добавим туда специального пользователя:&lt;/p>
+&lt;pre>&lt;code>#TYPE DB USER ADDRESS #METHOD
+host replication replication 10.0.0.2/32 md5
+&lt;/code>&lt;/pre>
+&lt;p>Теперь надо создать папку для архива:&lt;/p>
+&lt;pre>&lt;code>mkdir /var/lib/pg-archive/
+chown postgres /var/lib/pg-archive/
+chmod 700 /var/lib/pg-archive/
+&lt;/code>&lt;/pre>
+&lt;p>И перезапустить master:&lt;/p>
+&lt;pre>&lt;code>service postgresql restart
+&lt;/code>&lt;/pre>
+&lt;p>Создадим пользователя для репликации. Для этого в консоли самого постгреса выполним команду:&lt;/p>
+&lt;pre>&lt;code>CREATE ROLE replication WITH REPLICATION PASSWORD 'Hw572BbvG7g4cwq5' LOGIN;
+&lt;/code>&lt;/pre>
+&lt;p>Пароль нам потребуется для авторизации slave-а на мастере. Рекомендуется делать его посложнее.
+Для того, чтобы slave мог читать данные с мастера – на мастере должно быть разрешено соединение с портом postgresql (по умолчанию - 5432), проверьте firewall!&lt;/p>
+&lt;h3 id="копируем-данные" >Копируем данные
+&lt;span>
+&lt;a href="#%d0%ba%d0%be%d0%bf%d0%b8%d1%80%d1%83%d0%b5%d0%bc-%d0%b4%d0%b0%d0%bd%d0%bd%d1%8b%d0%b5">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Для начала остановим postgres на slave и удалим данные из datadir на salve:&lt;/p>
+&lt;pre>&lt;code>slave&amp;gt; service postgresql stop
+slave&amp;gt; rm -rf /var/lib/postgresql/9.6/main/*
+&lt;/code>&lt;/pre>
+&lt;p>Теперь скопируем основной каталог данных с мастера (текущее состояние)&lt;/p>
+&lt;pre>&lt;code>master&amp;gt; psql -c &amp;quot;SELECT pg_start_backup('sync', true)&amp;quot;
+master&amp;gt; rsync -rahzP /var/lib/postgresql/9.6/main/ 10.0.0.2:/var/lib/postgresql/9.6/main/ --exclude=postmaster.pid
+master&amp;gt; psql -c &amp;quot;SELECT pg_stop_backup()&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;h3 id="настраиваем-salve" >Настраиваем salve
+&lt;span>
+&lt;a href="#%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%b0%d0%b8%d0%b2%d0%b0%d0%b5%d0%bc-salve">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Если вы хотите читать данные из slave - нужно включить режим hot_standby. Это полезно, если slave используется для распределения нагрузки на чтение. Если slave нужен исключительно как горячая замена мастеру на случай аварии – этот параметр можно не трогать. В конфиге &lt;code>/etc/postgresql/9.6/master/postgresql.conf&lt;/code> добавим:&lt;/p>
+&lt;pre>&lt;code>hot_standby = on
+&lt;/code>&lt;/pre>
+&lt;p>В папке с данными (в нашем примере это &lt;code>/var/lib/postgresql/9.6/main/&lt;/code>) создадим файл с настройками репликации. Он должен называться &lt;code>recovery.conf&lt;/code>&lt;/p>
+&lt;pre>&lt;code>standby_mode = 'on'
+primary_conninfo = 'host=10.0.0.1 port=5432 user=replication password=Hw572BbvG7g4cwq5'
+trigger_file = '/var/lib/postgresql/9.6/promote_to_master'
+restore_command = 'cp /var/lib/pg-archive/%f &amp;quot;%p&amp;quot;'
+&lt;/code>&lt;/pre>
+&lt;p>Создадим на slave папку для архива WAL (так же, как это было сделано на master)&lt;/p>
+&lt;pre>&lt;code>mkdir /var/lib/pg-archive/
+chown postgres /var/lib/pg-archive/
+chmod 700 /var/lib/pg-archive/
+&lt;/code>&lt;/pre>
+&lt;p>Теперь синхронизируем архив мастера с архивом slave, чтобы гарантировать успешный запуск:&lt;/p>
+&lt;pre>&lt;code>master&amp;gt; rsync -rahzP /var/lib/pg-archive/ 10.0.0.2:/var/lib/pg-archive/
+&lt;/code>&lt;/pre>
+&lt;p>Поднимаем slave:&lt;/p>
+&lt;pre>&lt;code>slave&amp;gt; service postgresql start
+&lt;/code>&lt;/pre>
+&lt;p>В журнале постгреса можно увидеть что сервис стартовал и готов обслуживать соединения:&lt;/p>
+&lt;pre>&lt;code>2018-01-11 02:11:31 MSK [26781-1] LOG: database system is ready to accept read only connections
+2018-01-11 02:11:31 MSK [26788-1] LOG: started streaming WAL from primary at 10B/33000000 on timeline 1
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы WAL-сегменты не сожрали весь диск мастера подчистую – их надо периодически чистить. Несложный скрипт в crontab поможет:&lt;/p>
+&lt;pre>&lt;code>10 6 * * * /usr/bin/find /var/lib/pg-archive/ -type f -mtime +7 -exec rm {} \;
+&lt;/code>&lt;/pre>
+&lt;p>В этом примере мы чистим архив от сегментов старше 7 дней, задача выполняется в 6:10 утра по времени сервера.&lt;/p>
+&lt;h3 id="диагностика-и-ремонт" >Диагностика и ремонт
+&lt;span>
+&lt;a href="#%d0%b4%d0%b8%d0%b0%d0%b3%d0%bd%d0%be%d1%81%d1%82%d0%b8%d0%ba%d0%b0-%d0%b8-%d1%80%d0%b5%d0%bc%d0%be%d0%bd%d1%82">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Как проверить, что репликация работает? Проще всего - выяснить текущее положение WAL на мастере и slave:&lt;/p>
+&lt;pre>&lt;code>master$ psql -c &amp;quot;SELECT pg_current_xlog_location()&amp;quot;
+pg_current_xlog_location
+--------------------------
+0/2000000
+(1 row)
+slave$ psql -c &amp;quot;select pg_last_xlog_receive_location()&amp;quot;
+pg_last_xlog_receive_location
+-------------------------------
+0/2000000
+(1 row)
+&lt;/code>&lt;/pre>
+&lt;p>В норме положение мастера и slave должны быть близки или одинаковы (они будут одинаковы, если между выполнением команды на master и на slave на мастере не было изменений). Если на мастере число растет, а на slave – нет – репликация сломалась.
+Самый простой способ восстановить репликацию:&lt;/p>
+&lt;pre>&lt;code>#остановим slave:
+slave&amp;gt; service postgresql stop
+#скопируем архив WAL-сегментов с мастера на salve
+master&amp;gt; rsync -rahzP /var/lib/pg-archive/ 10.0.0.2:/var/lib/pg-archive/
+#запустим slave обратно:
+slave&amp;gt; service postgresql start
+&lt;/code>&lt;/pre>
+&lt;p>Это сработает, если синхронизация была потеряна недавно (в конкретно нашем примере – не более 7 дней назад) и WAL-ы из архива еще не удалены. Если синхронизацию сломали давно – придется синхронизироваться с нуля, как описано в разделах &amp;ldquo;копируем данные&amp;rdquo; и &amp;ldquo;настраиваем slave&amp;rdquo;. То есть – чистить datadir на slave, копировать состояние, копировать архивы и т.д.&lt;/p>
+&lt;h3 id="промотирование-перевод-slave-в-master" >Промотирование (перевод slave в master)
+&lt;span>
+&lt;a href="#%d0%bf%d1%80%d0%be%d0%bc%d0%be%d1%82%d0%b8%d1%80%d0%be%d0%b2%d0%b0%d0%bd%d0%b8%d0%b5-%d0%bf%d0%b5%d1%80%d0%b5%d0%b2%d0%be%d0%b4-slave-%d0%b2-master">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Это нужно в тех случаях, когда slave подменяет мастер на случай аварии. Для того, чтобы промотировать slave – нужно создать файл с именем, описанным в секции &lt;code>trigger_file&lt;/code> конфига &lt;code>recovery.conf&lt;/code>. В нашем примере это &lt;code>/var/lib/postgresql/9.6/promote_to_master&lt;/code>&lt;/p>
+&lt;pre>&lt;code>touch /var/lib/postgresql/9.6/promote_to_master
+&lt;/code>&lt;/pre>
+&lt;p>Содержание файла может быть любым.&lt;/p>
+&lt;p>После этого:&lt;/p>
+&lt;ul>
+&lt;li>slave перестанет реплицироваться с master&lt;/li>
+&lt;li>slave станет доступен для операций записи&lt;/li>
+&lt;li>slave начнет собственный отсчет WAL. Это значит, что даже если master вернется – смигрировать с него данные на slav e автоматически уже &lt;strong>не получится&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;h2 id="выводы" >Выводы
+&lt;span>
+&lt;a href="#%d0%b2%d1%8b%d0%b2%d0%be%d0%b4%d1%8b">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Репликация – мощная, удобная и надежная техника. Репликация в postgresql позволяет легко распределить нагрузку и повысить надежность инсталляции. Эта конструкция работает очень надежно и почти никогда не ломается (привет MySQL!). Разумеется, нужно помнить, что:&lt;/p>
+&lt;ul>
+&lt;li>любая техника требует мониторинга. Проверяйте состояние реплик!&lt;/li>
+&lt;li>репликация не заменяет backup, а только дополняет его.&lt;/li>
+&lt;/ul></description></item><item><title>Резервное копироварие mysql с помощью xtrabackup</title><link>https://prudnitskiy.pro/post/2016-04-21-xtrabackup/</link><pubDate>Thu, 21 Apr 2016 00:20:10 +0000</pubDate><guid>https://prudnitskiy.pro/post/2016-04-21-xtrabackup/</guid><description>&lt;p>MySQL - сверх-популярный сервер баз данных. Его используют (или использовали) практически все. Одна из самых популярных задач в системном администрировании - бэкап (и восстановление). Или, как подвид - миграция данных (бэкап + последующее восстановление). Это делают практически все. И практически все используют для mysql_dump, что категорически неправильно и часто просто опасно. В этой статье я расскажу, почему mysql_dump - это плохое решение и что с ним можно сделать.&lt;/p>
+&lt;h2 id="проблема" >Проблема
+&lt;span>
+&lt;a href="#%d0%bf%d1%80%d0%be%d0%b1%d0%bb%d0%b5%d0%bc%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>У mysql_dump есть три основных проблемы - скорость, неконсистентность и блокировки. Все три проблемы проистекают из его архитектуры, так что вылечить их невозможно. Чтобы понять проблемы, опишу алгоритм работы mysql_dump:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>mysql_dump получает список таблиц в базе&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>он проходит по списку по алфавиту (уже опасный момент)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>для каждой таблицы он делает три действия:&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>сначала он снимает структуру. Это очень быстрое действие.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>затем таблица блокируется на запись (целиком)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>после этого mysql_dump выгружает все данные (грубо говоря - делает &lt;code>SELECT * FROM table&lt;/code>)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>все выгруженное отправляется на stdout. Обычно stdout перенаправляется в файл (классическая конструкция: &lt;code>mysql_dump dbname &amp;gt; file.sql&lt;/code>)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>после того, как сканирование таблицы заканчивается - блокировка снимается и dump переходит к следующей таблице.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>Самая серьезная проблема, которая лежит на поверхности - блокировки. В момент, когда mysql_dump блокирует таблицу - записать в нее что-либо становится невозможно. В лучшем случае изменения в таблице будут накапливаться (если приложение умеет копить изменения и работать с базой асинхронно, как gorm). В худшем случае приложение упадет с ошибкой записи, а пользователь получит фигу в виде ошибки 500. Проблема консистентности лежит глубже, а потому она много опаснее, так как сходу эти грабли неочевидны, а по лбу бьют больно. Рассмотрим пример. У нас есть база, в которой лежит 3 таблицы: &amp;ldquo;affilates&amp;rdquo;, &amp;ldquo;logs&amp;rdquo; и &amp;ldquo;organisations&amp;rdquo;. Таблица logs очень большая. Таблицы affilates и organisations связаны через внешний ключ. Приложение вставляет запись в &amp;ldquo;affilates&amp;rdquo;, а затем - пачку записей в &amp;ldquo;organisations&amp;rdquo; с ключом, указывающим на запись в &amp;ldquo;affilates&amp;rdquo;. По логике работы mysql_dump, первой будет блокирована и сдамплена affilates. Записи в organisations можно вставлять только для уже существующих affilates, целосность данных не нарушается. После того, как affilates закончится и разблокируется, будет заблокирована logs. Как я уже писал, по условиям задачи она у нас большая и копируется, скажем, час (вполне реальный срок для большой таблицы). При этом никто не мешает создать запись в affilates, а потом из organisations сослаться на эту новую запись. Так, как упаковка affilates уже завершена - в дамп новая запись не попадет. После того, как мы упакуем organisations - в organisations образуются записи, ссылающиеся на не существовавшие в момент дампа ключи. И восстановить такой дамп без определенных магических движений будет невозможно. Ну и в качестве бонуса - мы потеряем данные, которые были созданы в процессе дампа, то есть целосность дампа будет на момент &lt;em>начала&lt;/em> операции, а не ее &lt;em>окончания&lt;/em>. Чтобы бороться со всеми этими проблемами и был придуман xtrabackup.&lt;/p>
+&lt;h2 id="установка-и-настройка" >установка и настройка
+&lt;span>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>xtrabackup - отдельный инструмент от компании percona. Из-за этого в большинстве штатных системных репозиториев он отсутствует - нужно ставить его из репозитория percona. Установка для debian и ubuntu:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">wget https://repo.percona.com/apt/percona-release_0.1-3.&lt;span style="color:#66d9ef">$(&lt;/span>lsb_release -sc&lt;span style="color:#66d9ef">)&lt;/span>_all.deb
+dpkg -i percona-release_0.1-3.&lt;span style="color:#66d9ef">$(&lt;/span>lsb_release -sc&lt;span style="color:#66d9ef">)&lt;/span>_all.deb
+apt-get update
+apt-get install percona-xtrabackup&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>То же самое для RHEL-based (CentOS, RedHat, Fedora, ScientificLinux)&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
+yum clean all
+yum makecache
+yum install -y percona-xtrabackup&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Для удобства работы с xtrabackup (особенно, если хочется с его помощь делать резервные копии автоматически) рекомендуется создать файл-ответчик с паролем администратора сервера. Назовем его, к примеру, /root/.percona. Пример такого файла:&lt;/p>
+&lt;pre>&lt;code>[client]
+user=root
+password=YYYYYYYY
+&lt;/code>&lt;/pre>
+&lt;h2 id="примерение" >Примерение
+&lt;span>
+&lt;a href="#%d0%bf%d1%80%d0%b8%d0%bc%d0%b5%d1%80%d0%b5%d0%bd%d0%b8%d0%b5">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;h3 id="простой-вариант---резервная-копия-всего-сервера-целиком" >Простой вариант - резервная копия всего сервера целиком:
+&lt;span>
+&lt;a href="#%d0%bf%d1%80%d0%be%d1%81%d1%82%d0%be%d0%b9-%d0%b2%d0%b0%d1%80%d0%b8%d0%b0%d0%bd%d1%82---%d1%80%d0%b5%d0%b7%d0%b5%d1%80%d0%b2%d0%bd%d0%b0%d1%8f-%d0%ba%d0%be%d0%bf%d0%b8%d1%8f-%d0%b2%d1%81%d0%b5%d0%b3%d0%be-%d1%81%d0%b5%d1%80%d0%b2%d0%b5%d1%80%d0%b0-%d1%86%d0%b5%d0%bb%d0%b8%d0%ba%d0%be%d0%bc">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp /var/tmp/backup
+innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp --apply-log /var/tmp/backup&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Восстановление выглядит еще проще. Нужно просто остановить процесс mysql и положить файлы в datadir (обычно это /var/lib/mysql/), а затем - запустить mysql обратно. Перед запуском - обязательно сменить права доступа на файлы, чтобы файлами владел владелец процесса mysql:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">service mysql stop
+rm -rf /var/lib/mysql/*
+mv /var/tmp/backup/* /var/lib/mysql/
+chown -R mysql:mysql /var/lib/mysql/
+service mysql start&lt;/code>&lt;/pre>&lt;/div>
+&lt;h3 id="усложненный-вариант---создаем-mysql-slave-от-имеющегося-мастера" >Усложненный вариант - создаем mysql slave от имеющегося мастера:
+&lt;span>
+&lt;a href="#%d1%83%d1%81%d0%bb%d0%be%d0%b6%d0%bd%d0%b5%d0%bd%d0%bd%d1%8b%d0%b9-%d0%b2%d0%b0%d1%80%d0%b8%d0%b0%d0%bd%d1%82---%d1%81%d0%be%d0%b7%d0%b4%d0%b0%d0%b5%d0%bc-mysql-slave-%d0%be%d1%82-%d0%b8%d0%bc%d0%b5%d1%8e%d1%89%d0%b5%d0%b3%d0%be%d1%81%d1%8f-%d0%bc%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">&lt;span style="color:#75715e">#on master&lt;/span>
+innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp /var/tmp/backup
+innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp --apply-log /var/tmp/backup
+rsync -rahP /var/tmp/backup NEW.SERVER.IP:/var/tmp/
+&lt;span style="color:#75715e">#выдадим права для slave, чтобы он мог читать данные из master-сервера:&lt;/span>
+mysql --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona -Bse &lt;span style="color:#e6db74">&amp;#34;GRANT REPLICATION SLAVE ON *.* TO &amp;#39;replica&amp;#39;@&amp;#39;NEW.SLAVE.SEVER.IP&amp;#39; IDENTIFIED BY &amp;#39;XXXXXXXX&amp;#39;&amp;#34;&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>innobackupex создает специальный файл с информацией о текущем бинлоге и позиции в этом бинлоге. Эта информация необходима для подключения slave - чтобы slave мог знать, с какого точно момента в прошлом была сделана эта копия базы (и начал синхронизацию именно с нужного момента). Файл называется &lt;code>xtrabackup_binlog_info&lt;/code>. Содержимое у него выглядит примерно вот так:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">mariadb-bin.000003 &lt;span style="color:#ae81ff">642&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Подключим slave-сервер к master-серверу. Для этого остановим mysql и подложим в datadir файлы, которые мы скопировали с master:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">service mysql stop
+rm -rf /var/lib/mysql/*
+mv /var/tmp/backup/* /var/lib/mysql/
+chown -R mysql:mysql /var/lib/mysql
+service mysql start&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Теперь подключим slave к master. Для этого в консоли mysql:&lt;/p>
+&lt;pre>&lt;code>--- на всякий случай почистим остатки старой конфигурации slave.
+--- В принципе их быть не должно.
+STOP SLAVE;
+RESET SLAVE;
+--- настроим подключение к master
+--- log_file и log_pos - из xtrabackup_binlog_info
+CHANGE MASTER TO MASTER_HOST='NEW.MASTER.SERVER.IP',
+MASTER_USER='replica',
+MASTER_PASSWORD='YYYYYYYY',
+MASTER_LOG_FILE='mariadb-bin.000003',
+MASTER_LOG_POS=642;
+--- запустим процесс репликации
+START SLAVE
+--- убедимся, что нет ошибок
+SHOW SLAVE STATUS \G
+&lt;/code>&lt;/pre>
+&lt;h3 id="сложный-вариант---переносим-отдельную-таблицу" >сложный вариант - переносим отдельную таблицу
+&lt;span>
+&lt;a href="#%d1%81%d0%bb%d0%be%d0%b6%d0%bd%d1%8b%d0%b9-%d0%b2%d0%b0%d1%80%d0%b8%d0%b0%d0%bd%d1%82---%d0%bf%d0%b5%d1%80%d0%b5%d0%bd%d0%be%d1%81%d0%b8%d0%bc-%d0%be%d1%82%d0%b4%d0%b5%d0%bb%d1%8c%d0%bd%d1%83%d1%8e-%d1%82%d0%b0%d0%b1%d0%bb%d0%b8%d1%86%d1%83">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Искушающе простой способ (остановить mysql, подсунуть файлы с таблицей и запустить обратно) - не сработает, техника немного сложнее. Чтобы восстановить таблицу, нужно подготовить таблицу внутри резеврной копии к экспорту:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">xtrabackup --prepare --export --target-dir&lt;span style="color:#f92672">=&lt;/span>/var/tmp/backup&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Теперь нужно создать таблицу с именем экспортируемой таблицы. Структура и содержимое не важны, важно только имя таблицы (имя базы тоже можно не учитывать):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sql" data-lang="sql">mysql&lt;span style="color:#f92672">&amp;gt;&lt;/span> &lt;span style="color:#66d9ef">CREATE&lt;/span> &lt;span style="color:#66d9ef">TABLE&lt;/span> ineedtorestore (a int(&lt;span style="color:#ae81ff">11&lt;/span>) &lt;span style="color:#66d9ef">DEFAULT&lt;/span> &lt;span style="color:#66d9ef">NULL&lt;/span>) ENGINE&lt;span style="color:#f92672">=&lt;/span>InnoDB &lt;span style="color:#66d9ef">DEFAULT&lt;/span> CHARSET&lt;span style="color:#f92672">=&lt;/span>latin1;
+mysql&lt;span style="color:#f92672">&amp;gt;&lt;/span> &lt;span style="color:#66d9ef">ALTER&lt;/span> &lt;span style="color:#66d9ef">TABLE&lt;/span> ineedtorestore DISCARD TABLESPACE;&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Кстати, если при вводе второй таблицы выскочит ошибка &lt;code>ERROR 1030 (HY000): Got error -1 from storage engine&lt;/code>, то нужно включить в my.cnf настройку &lt;code>innodb_file_per_table&lt;/code>.&lt;/p>
+&lt;p>Теперь нужно скопировать файлы с именем таблицы, которую мы будем восстанавливать, в каталог базы и перечитать файлы командой:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sql" data-lang="sql">mysql&lt;span style="color:#f92672">&amp;gt;&lt;/span> &lt;span style="color:#66d9ef">ALTER&lt;/span> &lt;span style="color:#66d9ef">TABLE&lt;/span> ineedtorestore IMPORT TABLESPACE;&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>После этого мы получим новую таблицу из бэкапа.&lt;/p></description></item><item><title>Миграция на mongo replica set без потери данных</title><link>https://prudnitskiy.pro/post/2015-09-06-mongo-shard/</link><pubDate>Sun, 06 Sep 2015 00:13:48 +0000</pubDate><guid>https://prudnitskiy.pro/post/2015-09-06-mongo-shard/</guid><description>&lt;p>По сути - это не статья, а, скорее, просто памятка, чтобы самому не забыть. MongoDB - популярный документо-ориентированный движок управления базой. Штатно он имеет две разных технологии кластеризации: репликационные наборы (replica set) и шардирование (shard). Разница проста - в случае реплики на всех узлах данные одинаковы и любой узел может выступать источником данных (&lt;strong>внимание, mongodb не является CAP-полной базой, так что точность данных тут под большим вопросом!&lt;/strong>), что обеспечивает отказоустойчивость. В случае шардирования данные &amp;ldquo;размазаны&amp;rdquo; по всему набору шарда, но каждый сервер внутри шарда имеет только свои данные. За счет этого распределяется нагрузка (например, с трех узлов данные можно читать параллельно), но снижается надежность - упавший узел означает потерю части данных шарда. В данной статье будет описание, как переехать с единичной монги на репсет не потеряв при этом данные.&lt;/p>
+&lt;p>Важной особенностью репсета является тот факт, что в нем всегда только один мастер, и запись можно производить только на мастер. Таким забавным способом mongo борется с потенциальными конфликтами конкурентной записи данных (задача, на самом деле, куда как непростая, Riak это ярко демонстрирует). В случае, если мастер умер - производятся выборы нового мастера. К слову, пока они идут - в репсет нельзя записать ничего, от слова совсем.&lt;/p>
+&lt;h2 id="инструкция" >Инструкция
+&lt;span>
+&lt;a href="#%d0%b8%d0%bd%d1%81%d1%82%d1%80%d1%83%d0%ba%d1%86%d0%b8%d1%8f">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Итак, у нас есть одна MongoDB, к которой подключено приложение и мы хотим перевести это приложение на работу с кластером. Авторы mongo рекомендуют иметь нечетное количество узлов в наборе для гарантии достижения кворума, то есть потребуется 3 сервера. В отличае от MySQL - управление выбором узлов для чтения и записи в монго возложено на драйвер (то есть - коннектор языка программирования к базе, а не на саму базу). Перед началом работ очень рекомендую, умеет ли ваш драйвер работать с репсетами. Первое, что нужно поменять - это в файле настроек указать IP адрес, на который mongo привязывается (она должна быть доступна по сети) и задать параметр replicationSet. Один инстанс mongo может одновременно находится только в одном replication set. Параметр - не динамический, mongo надо перезапустить для его применения. Вписываем в /etc/mongo:&lt;/p>
+&lt;pre>&lt;code>#имя replica set. Должно быть уникальным, но единым для всего набора
+replSet=replica1
+#bind_ip закомментирован - слушать на всех доступных адресах.
+#bind_ip=
+port=27017
+&lt;/code>&lt;/pre>
+&lt;p>Перезапускаем mongo, подключаемся к консоли (команда mongo) и инициируем набор:&lt;/p>
+&lt;pre>&lt;code># service mongodb restart
+# mongo
+&amp;gt; rs.initiate()
+{
+&amp;quot;info2&amp;quot; : &amp;quot;no configuration explicitly specified -- making one&amp;quot;,
+&amp;quot;me&amp;quot; : &amp;quot;db1.cluser:27017&amp;quot;,
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы быть уверенными, что мастером останется именно тот сервер, с которого мы начинаем конфигурирование (и на котором храним данные, которые не хотим потерять) - повысим ему приоритет в наборе. Мастер выбирается по принципу - случайный из максимального доступного приоритета, приоритет 0 будет означать, что данный сервер стать мастером не сможет никогда.&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; cfg = rs.conf()
+{
+&amp;quot;_id&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;version&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;host&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;arbiterOnly&amp;quot; : false,
+&amp;quot;buildIndexes&amp;quot; : true,
+&amp;quot;hidden&amp;quot; : false,
+&amp;quot;priority&amp;quot; : 1,
+&amp;quot;tags&amp;quot; : {
+},
+&amp;quot;slaveDelay&amp;quot; : 0,
+&amp;quot;votes&amp;quot; : 1
+}
+],
+&amp;quot;settings&amp;quot; : {
+&amp;quot;chainingAllowed&amp;quot; : true,
+&amp;quot;heartbeatTimeoutSecs&amp;quot; : 10,
+&amp;quot;getLastErrorModes&amp;quot; : {
+},
+&amp;quot;getLastErrorDefaults&amp;quot; : {
+&amp;quot;w&amp;quot; : 1,
+&amp;quot;wtimeout&amp;quot; : 0
+}
+}
+}
+replica1:PRIMARY&amp;gt; cfg.members[0].priority = 100
+100
+replica1:PRIMARY&amp;gt; rs.reconfig(cfg)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>Проверим состояние нашей реплики:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.status()
+{
+&amp;quot;set&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;date&amp;quot; : ISODate(&amp;quot;2015-08-20T19:38:18.845Z&amp;quot;),
+&amp;quot;myState&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;name&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 1,
+&amp;quot;stateStr&amp;quot; : &amp;quot;PRIMARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 96,
+&amp;quot;optime&amp;quot; : Timestamp(1440099489, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-20T19:38:09Z&amp;quot;),
+&amp;quot;electionTime&amp;quot; : Timestamp(1440099465, 2),
+&amp;quot;electionDate&amp;quot; : ISODate(&amp;quot;2015-08-20T19:37:45Z&amp;quot;),
+&amp;quot;configVersion&amp;quot; : 2,
+&amp;quot;self&amp;quot; : true
+}
+],
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre>
+&lt;p>Все ок. Ставим новый (пустой) сервер с mongo, прописываем в настройках replica set, запускаем. Теперь надо новый сервер добавить в набор:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.add(&amp;quot;db2.cluster:27017&amp;quot;)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>Узлы кластера должны быть доступны друг другу по порту, на котором работает mongo (по умолчанию 27017). Если используются имена, а не IP-адреса - важно убедится в том, что они правильно определяются со всех машин. Сервера общаются асинхронно, все со всеми. Проверим состояние нашего набора:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.status()
+{
+&amp;quot;set&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;date&amp;quot; : ISODate(&amp;quot;2015-08-20T21:16:13.381Z&amp;quot;),
+&amp;quot;myState&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;name&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 1,
+&amp;quot;stateStr&amp;quot; : &amp;quot;PRIMARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 77,
+&amp;quot;optime&amp;quot; : Timestamp(1440105350, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-20T21:15:50Z&amp;quot;),
+&amp;quot;electionTime&amp;quot; : Timestamp(1440105297, 1),
+&amp;quot;electionDate&amp;quot; : ISODate(&amp;quot;2015-08-20T21:14:57Z&amp;quot;),
+&amp;quot;configVersion&amp;quot; : 3,
+&amp;quot;self&amp;quot; : true
+},
+{
+&amp;quot;_id&amp;quot; : 1,
+&amp;quot;name&amp;quot; : &amp;quot;db2.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 5,
+&amp;quot;stateStr&amp;quot; : &amp;quot;STARTUP2&amp;quot;,
+&amp;quot;uptime&amp;quot; : 23,
+&amp;quot;optime&amp;quot; : Timestamp(0, 0),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;1970-01-01T00:00:00Z&amp;quot;),
+&amp;quot;lastHeartbeat&amp;quot; : ISODate(&amp;quot;2015-08-20T21:16:12.351Z&amp;quot;),
+&amp;quot;lastHeartbeatRecv&amp;quot; : ISODate(&amp;quot;2015-08 20T21:16:12.363Z&amp;quot;),
+&amp;quot;pingMs&amp;quot; : 0,
+&amp;quot;syncingTo&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;configVersion&amp;quot; : 3
+}
+],
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre>
+&lt;p>Статус STARTUP2 означает, что новый член набора синхронизируется (выгружает данные) с мастером. так, как по умолчанию приоритет у новых серверов - 1, даже после окончания, даже случайно этот сервер не сможет стать мастером, что убережет нас от потери данных.&lt;/p>
+&lt;p>Дождавшись синхронизации (state у нового сервера должен будет изменится на SECONDARY) - добавляем еще один сервер по точно такой же схеме:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.add(&amp;quot;db3.cluster:27017&amp;quot;)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>И снова ждем состояния SECONDARY. Теперь можно снизить приоритет основного сервера, чтобы он стал равноправным членом кластера:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; cfg.members[0].priority = 1
+1
+replica1:PRIMARY&amp;gt; rs.reconfig(cfg)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>И теперь убедимся, что все ок:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.status()
+{
+&amp;quot;set&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;date&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:11.851Z&amp;quot;),
+&amp;quot;myState&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;name&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 1,
+&amp;quot;stateStr&amp;quot; : &amp;quot;PRIMARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 46815,
+&amp;quot;optime&amp;quot; : Timestamp(1440152107, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:07Z&amp;quot;),
+&amp;quot;electionTime&amp;quot; : Timestamp(1440105297, 1),
+&amp;quot;electionDate&amp;quot; : ISODate(&amp;quot;2015-08-20T21:14:57Z&amp;quot;),
+&amp;quot;configVersion&amp;quot; : 4,
+&amp;quot;self&amp;quot; : true
+},
+{
+&amp;quot;_id&amp;quot; : 1,
+&amp;quot;name&amp;quot; : &amp;quot;db2.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 2,
+&amp;quot;stateStr&amp;quot; : &amp;quot;SECONDARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 46761,
+&amp;quot;optime&amp;quot; : Timestamp(1440152107, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:07Z&amp;quot;),
+&amp;quot;lastHeartbeat&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.856Z&amp;quot;),
+&amp;quot;lastHeartbeatRecv&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.997Z&amp;quot;),
+&amp;quot;pingMs&amp;quot; : 0,
+&amp;quot;syncingTo&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;configVersion&amp;quot; : 4
+},
+{
+&amp;quot;_id&amp;quot; : 2,
+&amp;quot;name&amp;quot; : &amp;quot;db3.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 2,
+&amp;quot;stateStr&amp;quot; : &amp;quot;SECONDARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 46550,
+&amp;quot;optime&amp;quot; : Timestamp(1440152107, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:07Z&amp;quot;),
+&amp;quot;lastHeartbeat&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.856Z&amp;quot;),
+&amp;quot;lastHeartbeatRecv&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.997Z&amp;quot;),
+&amp;quot;pingMs&amp;quot; : 0,
+&amp;quot;syncingTo&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;configVersion&amp;quot; : 4
+}
+],
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre></description></item><item><title>Быстрая миграция MySQL на failover cluster</title><link>https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/</link><pubDate>Fri, 01 May 2015 22:13:22 +0000</pubDate><guid>https://prudnitskiy.pro/post/2015-05-01-xtradb-quickstart/</guid><description>&lt;p>MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &amp;ldquo;из коробки&amp;rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.&lt;/p>
+&lt;p>Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.&lt;/p>
+&lt;p>В данном примере участвуют три сервера:&lt;/p>
+&lt;ul>
+&lt;li>db1 (IP 10.10.171.2)&lt;/li>
+&lt;li>db2 (IP 10.10.171.3)&lt;/li>
+&lt;li>db3 (IP 10.10.171.4)&lt;/li>
+&lt;/ul>
+&lt;p>DB1 - &amp;ldquo;старый&amp;rdquo; сервер с обычным MySQL, данные с которого мигрируют в кластер. DB2 и DB3, соответственно - свежие сервера. В принципе, установка свежего кластера &amp;ldquo;с нуля&amp;rdquo; (без данных) - не будет отличаться практически ничем. Изначально статья ориентирована на Debian, но для CentOS сделаны необходимые отступления, благо отличий немного.&lt;/p>
+&lt;h2 id="немного-истории" >Немного истории
+&lt;span>
+&lt;a href="#%d0%bd%d0%b5%d0%bc%d0%bd%d0%be%d0%b3%d0%be-%d0%b8%d1%81%d1%82%d0%be%d1%80%d0%b8%d0%b8">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Percona XtraDB - это ответвление (fork) изначального MySQL, созданного Монти Видениусом. В какой-то момент Видениус продал свой проект, и это сильно затормозило развитие проекта. Так, как проект обладал спорным качеством когда и был (с другой стороны) очень популярен - появилось огромное количество патчей, которые расширяли, углубляли и ускоряли кодовую базу. Самыми известным были набор патчей от google и набор патчей от Петра Зайцева. Последний создал компанию Percona, в рамках которой оптимизирует MySQL и консультирует пользователей этой системы. Он же выпускает свой форк MySQL, в котором собирает удачно работающие патчи. Как следствие - percona sql server с одной стороны надежнее, с другой - функциональнее, да и просто быстрее. В определенный момент был выпущен специальный дистрибутив XtraDB Cluster с набором библиотек Gallera Cluster - очень удачного и производительного решения для кластеризации MySQL&lt;/p>
+&lt;h2 id="подготовка" >Подготовка
+&lt;span>
+&lt;a href="#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>XtraDB cluster не входит в стандартные дистрибутивы ОС (ни для Debian, ни для CentOS), по этому, нужно добавить дистрибутивы&lt;/p>
+&lt;p>Для Debian (все операции проводим от root):&lt;/p>
+&lt;pre>&lt;code>#получаем ключи репозитория
+apt-key adv --keyserver keys.gnupg.net --recv-keys 1C4CBDCDCD2EFD2A
+#добавляем в файл /etc/apt/sources.list следующие строки:
+deb http://repo.percona.com/apt VERSION main
+deb-src http://repo.percona.com/apt VERSION main
+#где VERSION - версия вашего debian:
+# 6.0 - squeeze
+# 7.0 - wheezy
+# 8.0 - jessie
+#обновляем кеш:
+apt-get update
+&lt;/code>&lt;/pre>
+&lt;p>Для CentOS:&lt;/p>
+&lt;pre>&lt;code>#добавляем репозиторий
+yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
+#на всякий случай - обновляем кеш
+yum clean all &amp;amp;&amp;amp; yum makecache
+&lt;/code>&lt;/pre>
+&lt;p>теперь установим xtradb.&lt;/p>
+&lt;p>&lt;strong>В момент установки MySQL server будет удален из системы. Вы НЕ потеряете базы и данные в них, но сервис не будет работать до тех пор, пока вы не закончите настройку&lt;/strong>&lt;/p>
+&lt;pre>&lt;code>#debian
+apt-get install -y percona-xtradb-cluster-55
+#centos
+yum install -y Percona-XtraDB-Cluster-55
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы члены кластера могли общаться друг с другом, на каждом сервере нужно разрешить доступ со всех членов кластера по портам &lt;em>4444&lt;/em> и &lt;em>4567&lt;/em>. Кроме того, со всех серверов, которые будут использовать кластер БД нужно разрешить доступ на порт &lt;em>3306&lt;/em> (штатный порт mysq) и &lt;em>9199&lt;/em> (об этом - далее).&lt;/p>
+&lt;h2 id="настройка-кластера" >Настройка кластера
+&lt;span>
+&lt;a href="#%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0-%d0%ba%d0%bb%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Добавим в /etc/my.cnf (в debian он может называться /etc/mysql/my.cnf - если он уже есть - правим его!) следующие строки:&lt;/p>
+&lt;pre>&lt;code>[mysqld]
+#расположение физических файлов баз
+datadir=/var/lib/mysql
+#пользователь, от которого запускается сервер
+user=mysql
+#путь к библиотеке синхронизации, перед добавлением убедитесь, что файл по этому пути существует
+wsrep_provider=/usr/lib64/libgalera_smm.so
+#список IP всех членов кластера. Параметр идентичен на всех узлах кластера
+wsrep_cluster_address=gcomm://10.10.171.2,10.10.171.3,10.10.171.4
+binlog_format=ROW
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+#IP адрес узла, на котором мы настраиваем кластер
+wsrep_node_address=10.10.171.2
+wsrep_sst_method=xtrabackup-v2
+#имя кластера. Уникальное для инсталляции, но единое для всех узлов
+wsrep_cluster_name=axsystems_xtradb_test
+#имя пользователя и пароль для синхронизации
+wsrep_sst_auth=&amp;quot;syncuser:Ttm3wsbPE72Km96R&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>запустим первый узел в кластере. Если вы мигрируете кластер с существующего MySQL на percona - это надо делать на старом сервере, где данные. Этот узел в кластере будет образцом - остальные заберут с него данные&lt;/p>
+&lt;pre>&lt;code>/etc/init.d/mysql bootstrap-pxc
+&lt;/code>&lt;/pre>
+&lt;p>создадим пользователя для синхронизации:&lt;/p>
+&lt;pre>&lt;code>mysql@db1&amp;gt; CREATE USER 'syncuser'@'localhost' IDENTIFIED BY 'Ttm3wsbPE72Km96R';
+mysql@db1&amp;gt; GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT ON *.* TO 'syncuser'@'localhost';
+mysql@db1&amp;gt; FLUSH PRIVILEGES;
+&lt;/code>&lt;/pre>
+&lt;p>скопируем конфигурацию на DB2, и внесем необходимые изменения:&lt;/p>
+&lt;pre>&lt;code>[mysqld]
+#расположение физических файлов баз
+datadir=/var/lib/mysql
+#пользователь, от которого запускается сервер
+user=mysql
+#путь к библиотеке синхронизации, перед добавлением убедитесь, что файл по этому пути существует
+wsrep_provider=/usr/lib64/libgalera_smm.so
+#список IP всех членов кластера. Параметр идентичен на всех узлах кластера
+wsrep_cluster_address=gcomm://10.10.171.2,10.10.171.3,10.10.171.4
+binlog_format=ROW
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+#IP адрес узла, на котором мы настраиваем кластер.
+wsrep_node_address=10.10.171.3
+wsrep_sst_method=xtrabackup-v2
+#имя кластера. Уникальное для инсталляции, но единое для всех узлов
+wsrep_cluster_name=axsystems_xtradb_test
+#имя пользователя и пароль для синхронизации
+wsrep_sst_auth=&amp;quot;syncuser:Ttm3wsbPE72Km96R&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь подключим новый узел в кластер:&lt;/p>
+&lt;pre>&lt;code>/etc/init.d/mysql start
+&lt;/code>&lt;/pre>
+&lt;p>Запускаться он будет долго, так как ему надо снять копию с работающего уже члена кластера. К слову - в этот момент кластер уже работает и ваши пользователи могут использовать базу.&lt;/p>
+&lt;p>Как только mysql на втором сервере стартует успешно - можно проверить состояние кластера. Для этого в mysql консоли любого сервера пишем:&lt;/p>
+&lt;pre>&lt;code>mysql&amp;gt; show status like 'wsrep%';
++----------------------------+--------------------------------------+
+| Variable_name | Value |
++----------------------------+--------------------------------------+
+| wsrep_local_state_uuid | c2883338-834d-11e2-0800-03c9c68e41ec |
+[...]
+| wsrep_local_state | 4 |
+| wsrep_local_state_comment | Synced |
+[...]
+| wsrep_cluster_size | 2 |
+| wsrep_cluster_status | Primary |
+| wsrep_connected | ON |
+[...]
+| wsrep_ready | ON |
++----------------------------+--------------------------------------+
+40 rows in set (0.01 sec)
+&lt;/code>&lt;/pre>
+&lt;p>как видно - status - synced, размер кластера - 2 (узла). Все работает, по аналогии добавляем третий узел (не забудьте поменять wsrep_node_address в настройках!)&lt;/p>
+&lt;h2 id="failover-доступ" >failover-доступ
+&lt;span>
+&lt;a href="#failover-%d0%b4%d0%be%d1%81%d1%82%d1%83%d0%bf">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Большая часть современного ПО, работающая с MySQL, не может нормально обрабатывать несколько серверов. По этому мы будем использовать haproxy для распределения нагрузки. В этом примере haproxy ставится на каждый сервер, который использует mysql. HAProxy есть в базовом репозитории любого современного дистрибутива, так что просто ставим пакет:&lt;/p>
+&lt;pre>&lt;code>#debian
+apt-get install -y haproxy
+#centos
+yum install -y haproxy
+&lt;/code>&lt;/pre>
+&lt;p>Теперь настраиваем его. Пишем в конфигурацию /etc/haproxy/haproxy.cfg:&lt;/p>
+&lt;pre>&lt;code>global
+log 127.0.0.1 local2
+chroot /var/lib/haproxy
+pidfile /var/run/haproxy.pid
+maxconn 4000
+user haproxy
+group haproxy
+daemon
+#stats socket /var/lib/haproxy/stats
+defaults
+log global
+mode http
+option tcplog
+option dontlognull
+retries 3
+redispatch
+maxconn 2000
+contimeout 5000
+clitimeout 50000
+srvtimeout 50000
+#webui со статистикой. Обязательно используйте пароль (или закройте доступ к порту)
+listen stats 0.0.0.0:8086
+mode http
+stats enable
+stats uri /
+stats realm &amp;quot;balancer&amp;quot;
+stats auth logan:q6SJYy5cB3KKy34z
+#собственно, mysql кластер
+listen mysql-cluster 0.0.0.0:3306
+mode tcp
+balance roundrobin
+option httpchk
+server db1 10.10.171.2:3306 check port 9199 inter 12000 rise 3 fall 3
+server db2 10.10.171.3:3306 check port 9199 inter 12000 rise 3 fall 3
+server db3 10.10.171.4:3306 check port 9199 inter 12000 rise 3 fall 3
+&lt;/code>&lt;/pre>
+&lt;p>Порт 9199 haproxy будет использовать, чтобы убедится, что член кластера работоспособен и функционирует, как нужно. Сам XtraDB кластер не ждет соединений на 9199 порту. Нам потребуется специальный сервис, который будет локально проверять работу xtradb-cluster сервера для HAProxy. Сервис проверки очень прост, это не демон, так что его будет запускать супердемон xinetd. Вернемся на db1. Для начала - установим xinetd:&lt;/p>
+&lt;pre>&lt;code>#centos
+yum install -y xinetd
+#debian
+apt-get install -y xinetd
+&lt;/code>&lt;/pre>
+&lt;p>Создадим там файл /etc/xinetd.d/mysqlchk со следующим содержимым:&lt;/p>
+&lt;pre>&lt;code>service mysqlchk
+{
+disable = no
+flags = REUSE
+socket_type = stream
+port = 9199
+wait = no
+user = nobody
+server = /usr/bin/clustercheck
+server_args = syncuser Ttm3wsbPE72Km96R 1 /var/tmp/mss.log 0 /etc/my.cnf
+log_on_failure += USERID
+only_from = 0.0.0.0/0
+per_source = UNLIMITED
+}
+&lt;/code>&lt;/pre>
+&lt;p>Немного подробностей о том, что тут написано. Главные настройки - это server_args. Они позиционные, так что очередность путать нельзя:&lt;/p>
+&lt;ul>
+&lt;li>имя пользователя для проверки. Нужны права CONNECT и REPLICATION CLIENT&lt;/li>
+&lt;li>пароль&lt;/li>
+&lt;li>отвечать, что сервер доступен, если он - донор (то есть остальные сервера в данный момент синхронизируются с него)&lt;/li>
+&lt;li>путь к файлу журнала&lt;/li>
+&lt;li>отвечать, что сервер &lt;em>не доступен&lt;/em>, если он сейчас readonly (синхронизируется или заблокирован). Если поставить 1 - haproxy будет считать сервер в статусе readonly доступным&lt;/li>
+&lt;li>путь к my.cnf. В некоторых версиях debian он находится в /etc/mysql/my.cnf&lt;/li>
+&lt;/ul>
+&lt;p>пользователь и пароль в директиве server_args - из конфигурации mysql (выше). Обратите внимание на путь к my.cnf, в некоторых версиях debian он находится в /etc/mysql/my.cnf&lt;/p>
+&lt;p>Так же нужно добавить следующую строку в /etc/services:&lt;/p>
+&lt;pre>&lt;code>mysqlchk 9199/tcp #mysqlcheck
+&lt;/code>&lt;/pre>
+&lt;p>После этого можно перезапустить xinetd. Проверим, что сервис проверки работает, как задумано:&lt;/p>
+&lt;pre>&lt;code>db1&amp;gt; telnet 127.0.0.1 9199
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Connection: close
+Content-Length: 40
+Percona XtraDB Cluster Node is synced.
+Connection closed by foreign host.
+&lt;/code>&lt;/pre>
+&lt;p>Эту последовательность действий надо повторить на всех машинах - членах кластера.&lt;/p>
+&lt;p>Теперь можно спокойно перезапустить haproxy, зайти на страницу статистики (в данном примере - http://[SERVER_IP]:8086/) и убедится, что haproxy видит все сервера кластера. После этого можно спокойно прописывать на сервере-пользователе БД локальный адрес 127.0.0.1, порт и все остальные настройки - без изменений - и теперь у вас есть отказоустойчивый кластер баз mysql&lt;/p>
+&lt;h2 id="послесловие" >послесловие
+&lt;span>
+&lt;a href="#%d0%bf%d0%be%d1%81%d0%bb%d0%b5%d1%81%d0%bb%d0%be%d0%b2%d0%b8%d0%b5">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Не смотря на то, что данное решение кажется &amp;ldquo;идеальным решением&amp;rdquo;, у него есть и слабые стороны. На всякий случай, опишу их:&lt;/p>
+&lt;ul>
+&lt;li>Ведение кластеризации требует накладных расходов. Они очень незначительны (по моим замерам не получалось более 2% от базовой производительности сервера). Частично это нивелируется тем, что Percona быстрее, чем штатный MySQL, частично - тем, что мы используем балансировку нагрузки. Однако не упомянуть об этом было бы нечестно. Накладные расходы растут с увеличением количества узлов в кластере.&lt;/li>
+&lt;li>Percona Xtradb cluster крайне плохо поддерживает таблицы типа MyISAM. Об этом даже пишут в официальной документации. Если вам нужен MyISAM - я очень не рекомендую использовать xtradb cluster&lt;/li>
+&lt;li>Данная конфигурация отвечает исключительно за репликацию, шардирование (разделение данных между серверами в зависимости от содержимого, например - пользователи с четным ID - на правый сервер, с нечетным - на левый) - тут отсутствует.&lt;/li>
+&lt;/ul>
+&lt;h3 id="в-случае-аварии" >в случае аварии
+&lt;span>
+&lt;a href="#%d0%b2-%d1%81%d0%bb%d1%83%d1%87%d0%b0%d0%b5-%d0%b0%d0%b2%d0%b0%d1%80%d0%b8%d0%b8">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Если что-то из описанного в статье работает не так, как описано (или не работает вовсе) - попробуйте проверить ваши последние шаги. Самые частые проблемы, с которыми сталкивался я, это:&lt;/p>
+&lt;ul>
+&lt;li>Закрытые порты не дают узлам кластера общаться между собой (4444 используется для общения и координации, 4567 - для передачи данных свеже добавленным узлам).&lt;/li>
+&lt;li>Проблемы с линковкой (ошибка xtrabackup is exited: Perl:DBD is not installed, при этом Perl:DBD в системе есть). Это решается простым удалением всех пакетов, связанных с MySQL и установкой XtraDB cluster заново.&lt;/li>
+&lt;li>Подавляющее большинство ошибок можно диагностировать чтением log-файла. /var/log/mysql.log (для debian) или /var/log/mysqld.log (centos) - ваш друг.&lt;/li>
+&lt;/ul></description></item></channel></rss>

@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>debian on SRE Blog</title><link>https://prudnitskiy.pro/tags/debian/</link><description>SRE Blog (debian)</description><generator>Hugo -- gohugo.io</generator><language>ru-ru</language><lastBuildDate>Thu, 25 Dec 2014 12:23:35 +0000</lastBuildDate><atom:link href="https://prudnitskiy.pro/tags/debian/index.xml" rel="self" type="application/rss+xml"/><item><title>Мигрируем Debian на softraid без потери данных</title><link>https://prudnitskiy.pro/post/2014-12-25-debian-to-mdraid/</link><pubDate>Thu, 25 Dec 2014 12:23:35 +0000</pubDate><guid>https://prudnitskiy.pro/post/2014-12-25-debian-to-mdraid/</guid><description>&lt;p>Современные жесткие диски - чудо инженерии и техники. Пластины из магниево-алюминиевого сплава несутся со скоростью 120 оборотов в секунду, при этом считывающую голову от поверхности диска отделяет расстояние в 1/10 толщины человеческого волоса. Сама голова перемещается в любую точку всего за 2мс, что вызывает боковую перегрузку в фантастические 550G. Современные диски обладают впечатляющим объемом, большой линейной скоростью (что на чтение, что на запись) и минимальной задержкой поиска. И платят они за это (кроме цены) серьезным падением надежности. Старенькие Seagate Barracude и Quantum Fireball 6-10 гигабайт объемом без каких-либо нареканий жили десятилетиями, еще более старинные IBM на сотни мегабайт можно было безопасно вскрыть и закрыть в домашних условиях без специальной подготовки. Современные модели крайне чувствительны к вибрациям, тряске, углу наклона, удару и даже шуму (sic!). Средний срок жизни современного террабайтника - три года, если он эксплуатируется не слишком активно. Диски для серверов и NAS живут год-два. Если раньше RAID считался дорогой экзотикой серверного мира (по типу SCSI), то сейчас программный soft-raid - абсолютная необходимость, без которого сервер просто нельзя устанавливать.&lt;/p>
+&lt;p>В данной статье я расскажу, как мигрировать Debian Linux (в статье используется 7 версия, но с 6 тоже проблем не будет) с одного диска на зеркало из двух. В принципе, методика миграции универсальна, и Ubuntu или CentOS можно мигрировать точно так же. В качестве RAID будем использовать его программную реализацию (mdraid), что позволит сэкономить на железе. В общем случае использование mdraid оправдано, если у вас не очень много дисков (очень много - это больше 10), не используется сложный raid-алгоритм (RAID5/RAID6 и их потомки) и нет большой нагрузки на IOT. Если top показывает, что IO wait ушел куда-то к 50% - время подумать о покупке аппаратного решения.&lt;/p>
+&lt;p>В моем примере используется стандартная разбивка от Неметт:&lt;/p>
+&lt;pre>&lt;code>/dev/sda5 473M 148M 302M 33% /
+/dev/sda1 472M 30M 418M 7% /boot
+/dev/sda6 949M 33M 917M 4% /tmp
+/dev/sda7 5.5G 829M 4.5G 16% /usr
+/dev/sda8 448G 674M 425G 1% /var
+&lt;/code>&lt;/pre>
+&lt;p>&lt;em>Внимание! FreeBSD мигрируется по иной схеме, так как во FreeBSD нет mdraid, вместо него используется GEOM. Не пытайтесь адаптировать данную статью для FreeBSD! Если вам нужна статья по миграции FreeBSD - напишите в комментариях, я напишу такую инструкцию отдельно&lt;/em>
+&lt;a name="more">&lt;/a>&lt;/p>
+&lt;h2 id="подготовка-и-миграция-данных" >Подготовка и миграция данных
+&lt;span>
+&lt;a href="#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bc%d0%b8%d0%b3%d1%80%d0%b0%d1%86%d0%b8%d1%8f-%d0%b4%d0%b0%d0%bd%d0%bd%d1%8b%d1%85">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>В данной статье я предполагаю, что у нас два одинаковых диска, /dev/sda - это реальный, а /dev/sdb - свеже установленный. Все действия производятся от root.&lt;/p>
+&lt;p>Для начала нам потребуется немного ПО:&lt;/p>
+&lt;pre>&lt;code>apt-get install mdmadm rsync screen
+&lt;/code>&lt;/pre>
+&lt;p>screen в данной ситуации ставится, чтобы избежать проблем, если во время копирования данных поломается сеть. Если копируете локально (с консоли) - он вам не нужен&lt;/p>
+&lt;p>проверим геометрию:&lt;/p>
+&lt;pre>&lt;code>#sfdisk -d /dev/sda
+Warning: extended partition does not start at a cylinder boundary.
+DOS and Linux will interpret the contents differently.
+# partition table of /dev/sda
+unit: sectors
+/dev/sda1 : start= 2048, size= 997376, Id=83, bootable
+/dev/sda2 : start= 999424, size= 1000000, Id=83
+/dev/sda3 : start= 2000894, size=974770178, Id= 5
+/dev/sda4 : start= 0, size= 0, Id= 0
+/dev/sda5 : start= 2000896, size= 7811072, Id=82
+/dev/sda6 : start= 9814016, size= 1951744, Id=83
+/dev/sda7 : start= 11767808, size= 11716608, Id=83
+/dev/sda8 : start= 23486464, size=953284608, Id=83
+&lt;/code>&lt;/pre>
+&lt;p>Warning можно игнорировать. На данном этапе рекомендую проверить, что на диске-получателе геометрии нет. Если там есть данные, то при копировании геометрии они умрут, и шансов восстановить их без скальпеля не будет:&lt;/p>
+&lt;pre>&lt;code>sfdisk -d /dev/sdb
+Warning: extended partition does not start at a cylinder boundary.
+DOS and Linux will interpret the contents differently.
+# partition table of /dev/sda
+unit: sectors
+&lt;/code>&lt;/pre>
+&lt;p>Копируем геометрию:&lt;/p>
+&lt;pre>&lt;code>sfdisk -d /dev/sda | sfdisk /dev/sdb
+&lt;/code>&lt;/pre>
+&lt;p>Лирическое отступление. Если у вас большие диски и используется GPT-таблица - sfdisk вам не поможет, потребуется установить программу &lt;code>gdisk&lt;/code> и переносить уже ей:&lt;/p>
+&lt;pre>&lt;code>#переносим раздел
+sgdisk -R /dev/sdb /dev/sda
+#рандомизируем GUID
+sgdisk -G /dev/sdb
+&lt;/code>&lt;/pre>
+&lt;p>Теперь у нас есть два идентичных по разбивке диска. Соберем из второго диска RAID. В нашей ситуации это зеркало (raid-1), по этому RAID будет работать, даже если в массиве остался один диск (так как по идеологии RAID-1 диски совершенно равноправны). Мы создадим по одному raid на каждый раздел диска, включая своп (это гарантирует, что система нормально запустится, если любой диск выйдет из строя). Так как в нормальном случае при сборке зеркала надо указывать два диска, вместо отсутствующего мы будем использовать ключевое слово missing&lt;/p>
+&lt;p>Важное примечание. GRUB первой версии не может загружаться с новой версии mdraid-массива. Специально для boot-раздела нужно указать старую версию дискового массива (ключом &amp;ndash;metadata=0.90). В моем примере это md0:&lt;/p>
+&lt;pre>&lt;code>mdadm --create /dev/md0 --level 1 --raid-devices=2 missing /dev/sdb1 --metadata=0.90
+mdadm --create /dev/md1 --level 1 --raid-devices=2 missing /dev/sdb2
+mdadm --create /dev/md2 --level 1 --raid-devices=2 missing /dev/sdb5
+mdadm --create /dev/md3 --level 1 --raid-devices=2 missing /dev/sdb6
+mdadm --create /dev/md4 --level 1 --raid-devices=2 missing /dev/sdb7
+mdadm --create /dev/md4 --level 1 --raid-devices=2 missing /dev/sdb8
+&lt;/code>&lt;/pre>
+&lt;p>Массив собрался, проверим:&lt;/p>
+&lt;pre>&lt;code>cat /proc/mdstat
+Personalities : [raid1]
+md5 : active raid1 sdb8[1]
+476511040 blocks super 1.2 [2/1] [_U]
+md4 : active raid1 sdb7[1]
+5854144 blocks super 1.2 [2/1] [_U]
+md3 : active raid1 sdb6[1]
+975296 blocks super 1.2 [2/1] [_U]
+md2 : active raid1 sdb5[1]
+3903424 blocks super 1.2 [2/1] [_U]
+md1 : active raid1 sdb2[1]
+499712 blocks super 1.2 [2/1] [_U]
+md0 : active raid1 sdb1[1]
+499712 blocks [2/1] [_U]
+&lt;/code>&lt;/pre>
+&lt;p>Выглядит вроде норм (обратите внимание на md0!), можно форматировать наши новые разделы. Я очень рекомендую использовать метки (label) при форматировании - это здорово облегчает жизнь при проблемах. Метка выставляется ключем -L&lt;/p>
+&lt;pre>&lt;code>#так, как у нас GRUB1, который не умеет работать с ext4 - загрузочный раздел поставим на ext3
+mkfs.ext3 /dev/md0 -L /boot
+[...]
+mkfs.ext4 /dev/md1 -L /
+[...]
+mkswap /dev/md2 -L swap
+[...]
+mkfs.xfs /dev/md3 -L /tmp
+[...]
+mkfs.ext4 /dev/md4 -L /usr
+[...]
+mkfs.ext4 /dev/md5 -L /var
+&lt;/code>&lt;/pre>
+&lt;p>После того, как все отформатируется, можно монтировать:&lt;/p>
+&lt;pre>&lt;code>mount /dev/md1 /mount
+#создадим каталоги для виртуальных систем, которые создаются при запуске ОС
+mkdir /mount/dev mount/proc /mount/sys
+#теперь создадим пути для монтирования наших разделов
+mkdir /mount/boot /mount/tmp /mount/usr /mount/var
+# и смонтируем необходимые для миграции каталоги
+mount /dev/md0 /mount/boot
+mount /dev/md4 /mount/usr
+mount /dev/md5 /mount/var
+&lt;/code>&lt;/pre>
+&lt;p>Теперь у нас есть две файловых системы: реальная, с которой сервер сейчас загружен и &amp;ldquo;пустая&amp;rdquo;, структурно повторяющая реальную. И во вторую можно копировать данные из первой. Процедура длительная, крайне рекомендую проводить ее через screen. Перед началом рекомендуется остановить все сервисы, которые активно пишут в жесткий диск (например, mysql) - иначе есть риск получить неконсистентность данных:&lt;/p>
+&lt;pre>&lt;code>#переключаемся в screen
+screen -dR
+#начинаем копировать. Нужно указать в качестве исключений при копирвании служебные
+#файловые системы (proc, sys, dev, selinux, если он есть)
+#и служебные каталоги самих файлсистем. в ext3/ext4 таким является lost+found,
+#это учет inode-сирот и копировать его бессмысленно
+#и, разумеется, надо исключить каталог, в который мы копируем - иначе будет петля
+rsync -rahzP --exclude=/dev --exclude=/proc --exclude=/sys \
+--exclude=/lost+found --exclude=/boot/lost+found --exclude=/var/lost+found --exclude=/usr/lost+found \
+--exclude=/mount / /mount/
+&lt;/code>&lt;/pre>
+&lt;h3 id="переключение-на-новый-диск" >Переключение на новый диск
+&lt;span>
+&lt;a href="#%d0%bf%d0%b5%d1%80%d0%b5%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5-%d0%bd%d0%b0-%d0%bd%d0%be%d0%b2%d1%8b%d0%b9-%d0%b4%d0%b8%d1%81%d0%ba">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h3>&lt;p>Теперь нам нужно установить загрузчик на второй диск. Прелесть загрузчика в том, что он живет в загрузочной области, которая не отображается на файловую систему, а значит, копировать его &amp;ldquo;в лоб&amp;rdquo; - бессмысленно. Загрузчик ставится на диск, а не на раздел. Если у вас 10 дисков - ставить надо на все, которые в теории должны быть загрузочными&lt;/p>
+&lt;pre>&lt;code>grub-install /dev/sdb
+&lt;/code>&lt;/pre>
+&lt;p>После переноса данных начинается самое сложное - правка путей. В старых версиях linux адресация дисков была относительной, master в канале ide0 назывался hda, slave ide 1 - hde (hdd был зарезервирован). Это вызывало интересные коллизии в SCSI и SATA, где адресация внутри шины не абсолютна, и после перезагрузки диски могли легко поменяется местами - просто потому, что кто-то очнулся раньше. Поэтому в новых версиях введен механизм block uuid, у каждого блочного устройства есть абсолютно уникальный идентификатор, и обращения к дискам идут строго по нему.&lt;/p>
+&lt;p>Нам нужно получить список всех блочных идентификаторов, их выдает команда blkid:&lt;/p>
+&lt;pre>&lt;code>blkid
+/dev/sda5: UUID=&amp;quot;b7b1edbd-308d-489f-8289-43126f1a9b70&amp;quot; TYPE=&amp;quot;swap&amp;quot;
+/dev/sda1: UUID=&amp;quot;1b2e76b3-ffc9-4846-a210-02ed19373976&amp;quot; TYPE=&amp;quot;ext3&amp;quot; SEC_TYPE=&amp;quot;ext2&amp;quot; LABEL=&amp;quot;/boot&amp;quot;
+/dev/sda2: UUID=&amp;quot;07ca4a9e-4262-44d4-a8e4-31ae37306003&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/sda6: UUID=&amp;quot;b7ab9817-7e56-455c-99f6-9c0d9a8e23d6&amp;quot; TYPE=&amp;quot;xfs&amp;quot;
+/dev/sda7: UUID=&amp;quot;8e6777bf-a565-4983-9851-ff358a1d0da3&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/sda8: UUID=&amp;quot;591e3e16-db6d-4caa-87d3-f0d3b8848b98&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/sdb1: UUID=&amp;quot;a96db57d-5724-63e6-769a-12bac1c5caa9&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb2: UUID=&amp;quot;0b338f2d-c26b-d8c0-f8c4-5384672d5ebb&amp;quot; UUID_SUB=&amp;quot;f459ad18-3892-50ff-b2f0-d9cec2490d65&amp;quot; LABEL=&amp;quot;ffs:1&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb5: UUID=&amp;quot;5438f240-b120-69f1-0eb9-fd89f7deb762&amp;quot; UUID_SUB=&amp;quot;ff19fb3c-c5ce-ad49-2825-28cb490c98d9&amp;quot; LABEL=&amp;quot;ffs:2&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb6: UUID=&amp;quot;a769e010-9f0e-0861-c1fc-d120e436004a&amp;quot; UUID_SUB=&amp;quot;27db9864-f01a-5dac-9e26-ff75a8e5ccb9&amp;quot; LABEL=&amp;quot;ffs:3&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb7: UUID=&amp;quot;40aef537-e1b0-de63-8412-2c0d49e8a73c&amp;quot; UUID_SUB=&amp;quot;3bb89ea7-6b8b-7952-98d8-1fb080c548f4&amp;quot; LABEL=&amp;quot;ffs:4&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb8: UUID=&amp;quot;d1e75e0e-5434-b700-dd83-a571d7b5ae3b&amp;quot; UUID_SUB=&amp;quot;f7602eb7-2169-8fed-e8fb-bc8feb04b431&amp;quot; LABEL=&amp;quot;ffs:5&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/md0: LABEL=&amp;quot;/boot&amp;quot; UUID=&amp;quot;9f2ec8da-9f6c-417c-81c2-39fd2e1b8dd9&amp;quot; SEC_TYPE=&amp;quot;ext2&amp;quot; TYPE=&amp;quot;ext3&amp;quot;
+/dev/md1: LABEL=&amp;quot;/&amp;quot; UUID=&amp;quot;9441c57c-c88f-4476-8e8d-b9a281292170&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/md2: LABEL=&amp;quot;swap&amp;quot; UUID=&amp;quot;bb4a83e7-1e21-434c-9d27-2b53a9431bdb&amp;quot; TYPE=&amp;quot;swap&amp;quot;
+/dev/md3: LABEL=&amp;quot;/tmp&amp;quot; UUID=&amp;quot;5f5b2216-3766-4b00-a8a7-0bd1330c8393&amp;quot; TYPE=&amp;quot;xfs&amp;quot;
+/dev/md4: LABEL=&amp;quot;/usr&amp;quot; UUID=&amp;quot;f9d85aee-3ef2-409d-8406-351e0dfd81ab&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/md5: LABEL=&amp;quot;/var&amp;quot; UUID=&amp;quot;7a36dd15-2a40-475e-b3e1-257569ca2958&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Много-много страшного текста (а я говорил, что label - очень помогает!). Теперь нам нужно поменять одни UID на другие. Менять можно в любом текстовом редакторе. Главное их не перепутать. Я рекомендую скопировать UID-ы куда-нибудь примерно в таком виде:&lt;/p>
+&lt;pre>&lt;code>1b2e76b3-ffc9-4846-a210-02ed19373976 -&amp;gt; 9f2ec8da-9f6c-417c-81c2-39fd2e1b8dd9
+07ca4a9e-4262-44d4-a8e4-31ae37306003 -&amp;gt; 9441c57c-c88f-4476-8e8d-b9a281292170
+&lt;/code>&lt;/pre>
+&lt;p>Менять UUID надо в двух местах:&lt;/p>
+&lt;ul>
+&lt;li>/mount/etc/fstab - список файловых систем. Там нужно поменять все UID&lt;/li>
+&lt;li>/mount/boot/grub/grub.cfg - конфигурация загрузчика. Тут будут только UUID разделов /boot и /, но будет их, в отличие от fstab, несколько&lt;/li>
+&lt;/ul>
+&lt;p>Если у вас нет доступа к BIOS и вы не можете поменять приоритет загрузки дисков, новый конфиг grub из /mount/boot/grub/grub.cfg нужно скопировать на место старого (/boot/grub/grub.cfg).&lt;/p>
+&lt;p>Данные скопированы, и теперь можно спокойно перезагружать сервер:&lt;/p>
+&lt;pre>&lt;code>sync
+reboot
+&lt;/code>&lt;/pre>
+&lt;p>После того, как сервер вновь станет отвечать на внешние раздражители, проверим, что он загрузился с новых дисков:&lt;/p>
+&lt;pre>&lt;code>#mount
+/dev/md0 on /boot type ext3 (rw,relatime,errors=continue,user_xattr,acl,barrier=1,data=ordered)
+/dev/md3 on /tmp type xfs (rw,relatime,attr2,delaylog,noquota)
+/dev/md4 on /usr type ext4 (rw,relatime,user_xattr,barrier=1,data=ordered)
+/dev/md5 on /var type ext4 (rw,relatime,user_xattr,barrier=1,data=ordered)
+&lt;/code>&lt;/pre>
+&lt;p>Теперь осталось только проверить, что данные не потерялись по дороге и можно добавлять старый диск в новый RAID (напомню, сейчас наши массивы состоят из одного диска каждый, и RAID, строго говоря, не являются). До добавления старого диска мы еще можем обращаться к данным на нем, так убедитесь, что все данные переехали на новый диск и ничего не забыто. Шансов восстановить данные с диска, добавленного в RAID - нулевые:&lt;/p>
+&lt;pre>&lt;code>mdadm /dev/md0 --add /dev/sda1
+mdadm /dev/md1 --add /dev/sda2
+mdadm /dev/md2 --add /dev/sda5
+mdadm /dev/md3 --add /dev/sda6
+mdadm /dev/md4 --add /dev/sda7
+mdadm /dev/md5 --add /dev/sda8
+&lt;/code>&lt;/pre>
+&lt;p>Теперь остается только дождаться окончания синхронизации массива, а посмотреть состояние можно так:&lt;/p>
+&lt;pre>&lt;code>cat /proc/mdstat
+&lt;/code>&lt;/pre></description></item><item><title>Обновление дистрибутива debian до 6 версии</title><link>https://prudnitskiy.pro/post/2011-08-18-debian-update-distro/</link><pubDate>Thu, 18 Aug 2011 05:28:30 +0000</pubDate><guid>https://prudnitskiy.pro/post/2011-08-18-debian-update-distro/</guid><description>&lt;p>В свете выхода нового стабильного релиза любимого мною дистрибутива Debian (Squeeze, 6.0) - краткая инструкция по обновлению дистрибутива до нового релиза.&lt;/p>
+&lt;h2 id="предварительно" >Предварительно:
+&lt;span>
+&lt;a href="#%d0%bf%d1%80%d0%b5%d0%b4%d0%b2%d0%b0%d1%80%d0%b8%d1%82%d0%b5%d0%bb%d1%8c%d0%bd%d0%be">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;ul>
+&lt;li>Не рекомендуется использовать слова-состояния дистрибутива в конфигурации apt (stable, unstable, testing) - рекомендуется использовать имена собственные дистрибутивов&lt;/li>
+&lt;li>Не рекомендуется использовать российские зеркала, особенно - в первые дни после выхода дистрибутива. Питерцы могут использовать зеркало в Финляндии, москвичи - английское, Владивостокцы - напрямую американское, оно ближе. Российские зеркала в первые недели выхода релиза практически неработоспособны (Yandex, например, по сию пору имеет несколько поврежденных критически важных пакетов, а на chg.ru несколько пакетов и вовсе закрыты 403 ошибкой)&lt;/li>
+&lt;li>Бекап никто не отменял, особенно это касается удаленных серверов.&lt;/li>
+&lt;li>Если используются хитрые правила монтирования - рекомендуется временно их отключить. Как минимум, необходимо дать права на запись / и /boot и разрешить выполнение файлов в /var&lt;/li>
+&lt;/ul>
+&lt;h2 id="инструкция" >Инструкция:
+&lt;span>
+&lt;a href="#%d0%b8%d0%bd%d1%81%d1%82%d1%80%d1%83%d0%ba%d1%86%d0%b8%d1%8f">
+&lt;svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg">&lt;path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>&lt;/svg>
+&lt;/a>
+&lt;/span>
+&lt;/h2>&lt;p>Меняем настройки apt:&lt;/p>
+&lt;pre>&lt;code>#deb ftp://ftp.fi.debian.org/debian/ etch main contrib non-free
+#deb-src ftp://ftp.fi.debian.org/debian/ etch main contrib non-free
+deb ftp://ftp.fi.debian.org/debian/ squeeze main contrib non-free
+deb-src ftp://ftp.fi.debian.org/debian/ squeeze main contrib non-free
+#deb http://security.debian.org/ etch/updates main
+#deb-src http://security.debian.org/ etch/updates main
+deb http://security.debian.org/ squeeze/updates main
+deb-src http://security.debian.org/ squeeze/updates main
+#deb http://volatile.debian.org/debian-volatile squeeze/volatile main
+#deb-src http://volatile.debian.org/debian-volatile squeeze/volatile main
+&lt;/code>&lt;/pre>
+&lt;p>Выгружаем кеш пакетов:&lt;/p>
+&lt;p>&lt;code>sudo apt-get update&lt;/code>&lt;/p>
+&lt;p>Обновляем сам apt:&lt;/p>
+&lt;pre>&lt;code>sudo aptitude install apt dpkg aptitude
+&lt;/code>&lt;/pre>
+&lt;p>Обновляем операционную систему&lt;/p>
+&lt;pre>&lt;code>sudo aptitude full-upgrade
+&lt;/code>&lt;/pre>
+&lt;p>&lt;strong>Важно!&lt;/strong> При обновлении aptitude замещает часть файлов. О каждом случае замещения он подробно пишет. Это обязательно нужно читать, чтобы не получить неожиданный трудноуловимый сюрприз&lt;/p>
+&lt;p>Перезагружаемся и обновляем свежеобновленную систему:&lt;/p>
+&lt;pre>&lt;code>sudo apt-get update &amp;amp;&amp;amp; sudo apt-get upgrade
+&lt;/code>&lt;/pre>
+&lt;p>Снова перезагружаемся и проверяем, что все обновилось:&lt;/p>
+&lt;pre>&lt;code>cat /etc/debian_version
+6.0.1
+apt-get update &amp;amp;&amp;amp; apt-get upgrade
+&lt;/code>&lt;/pre></description></item></channel></rss>

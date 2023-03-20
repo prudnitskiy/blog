@@ -1,0 +1,413 @@
+<!doctype html><html lang=ru-ru data-theme>
+<head>
+<meta charset=utf-8>
+<meta name=HandheldFriendly content="True">
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=referrer content="no-referrer-when-downgrade">
+<title>Repmgr: управление репликацией postgresql - SRE Blog</title>
+<meta name=description content="Короткое руководство по установке и настройке repmgr - утилиты для управления сложными репликациями в PostgreSQL.">
+<link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico>
+<link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png>
+<link rel=stylesheet href=https://prudnitskiy.pro/css/style.min.63aba568b2393a8f5a364a508001b05c9412a603d1a0a69bd50f9944649f9c56.css integrity="sha256-Y6ulaLI5Oo9aNkpQgAGwXJQSpgPRoKab1Q+ZRGSfnFY=">
+<script src=https://prudnitskiy.pro/js/script.min.510c781c39dbb21b4c76d85c82e2bdf4689220adbb7cd61e49e9d293e442fb42.js type=text/javascript integrity="sha256-UQx4HDnbshtMdthcguK99GiSIK27fNYeSenSk+RC+0I="></script>
+<meta property="og:title" content="Repmgr: управление репликацией postgresql">
+<meta property="og:description" content="Короткое руководство по установке и настройке repmgr - утилиты для управления сложными репликациями в PostgreSQL.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://prudnitskiy.pro/post/2018-08-22-repmgr/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2018-08-22T12:00:00+00:00">
+<meta property="article:modified_time" content="2018-08-22T12:00:00+00:00">
+<meta name=twitter:card content="summary">
+<meta name=twitter:title content="Repmgr: управление репликацией postgresql">
+<meta name=twitter:description content="Короткое руководство по установке и настройке repmgr - утилиты для управления сложными репликациями в PostgreSQL.">
+</head>
+<body>
+<a class=skip-main href=#main>Skip to main content</a>
+<div class=container>
+<header class=common-header>
+<div class=header-top>
+<h1 class=site-title>
+<a href=/>SRE Blog</a>
+</h1>
+<ul class=social-icons>
+<li>
+<a href=https://github.com/prudnitskiy title=Github rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentcolor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6.0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6.0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3.0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1.0-6.2-.3-40.4-.3-61.4.0.0-70 15-84.7-29.8.0.0-11.4-29.1-27.8-36.6.0.0-22.9-15.7 1.6-15.4.0.0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5.0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9.0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4.0 33.7-.3 75.4-.3 83.6.0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6.0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9.0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+</a>
+</li>
+<li>
+<a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentcolor" d="M416 32H31.9C14.3 32 0 46.5.0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6.0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3.0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2.0 38.5 17.3 38.5 38.5.0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6.0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2.0 79.7 44.3 79.7 101.9V416z"/></svg>
+</span>
+</a>
+</li>
+</ul>
+</div>
+<nav>
+<a href=https://prudnitskiy.pro/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ title=Blog>Blog</a>
+</nav>
+</header>
+<main id=main tabindex=-1>
+<article class="post h-entry">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title">Repmgr: управление репликацией postgresql</h1>
+</header>
+</div>
+<div class="content e-content">
+<p>PostgreSQL - это мощная и очень развитая база данных, функциональная и дружелюбная. В комплект входит надежный и очень удобный механизм потоковой репликации (я писал о нем <a href=/2018-01-05-pgsql-replica>здесь</a>). Не смотря на мощь и удобство – этот инструмент сложен в настройке и не всегда понятен, особенно, если серверов баз много. Все становится еще хуже, если у вас сложная схема репликации с каскадами (master > slave > slave of slave). Чтобы облегчить жизнь DBA в таких ситуациях – известные специалисты по консалтингу Postgres, компания 2ndQuadrant придумали repmgr – специальный инструмент для управления настройками репликации для PostgreSQL.</p>
+<p>Repmgr может:</p>
+<ul>
+<li>облегчить создание новых серверов</li>
+<li>облегчить переключение на другой сервер (promote)</li>
+<li>автоматизировать переключение на новый сервер при отказе старого (failover)</li>
+<li>вести аудит событий репликации в кластере (event flow)</li>
+<li>официально repmgr поддерживает мультимастер с помощью механизма bidirectional replication. Это жуткий грязный хак, и я очень не рекомендую его использовать</li>
+</ul>
+<p>Repmgr требует (ограничения):</p>
+<ul>
+<li>postgresql 9 или 10 (так как только в 9 версии появилась потоковая репликаця)</li>
+<li>доступ с каждого узла кластера на каждый узел кластера по протоколам SSH (непривелигированый) и postgresql (5432)</li>
+<li>одинаковую версию Postgres (только major)</li>
+<li>одинаковую архитектуру сервера (вы не сможете реплицировать данные с ARM на AMD64)</li>
+<li>одинаковую версию repmgr на всех узлах кластера (одинаковость должна быть <em>полной</em>)</li>
+<li>пользователя с правами SUPERUSER, от имени которого repmgr будет проводить операции. Пароль от этого пользователя хранится в файловой системе кластера в открытом виде.</li>
+</ul>
+<h2 id=установка>Установка
+<span>
+<a href=#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Repmgr поставляется в виде пакета и входит в стандартный для всех пользователей postgresql репозиторий PGDG. В данной статье я продемонстрирую настройку для debian, но для centos он настраивается практически так же – меняются только пути доступа к файлам. Добавим репозиторий:</p>
+<pre><code>sh -c 'echo &quot;deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main&quot; &gt; /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+apt-get update
+</code></pre>
+<p>Теперь можно установить необходимые для работы пакеты:</p>
+<pre><code>apt-get install postgresql-10 postgresql-10-repmgr -y
+</code></pre>
+<p>Для repmgr важно, чтобы все хосты видели друг друга по hostname. Я рекомендую иметь внутренний DNS для решения этой задачи, но если у вас по какой-то причине его нет – придется добавить имена и адреса серверов кластера в <code>/etc/hosts</code>. Например:</p>
+<pre><code>192.168.0.17    pg1.lab.office    pg1
+192.168.0.18    pg2.lab.office    pg2
+192.168.0.19    pg3.lab.office    pg3
+</code></pre>
+<p>Для того, что бы repmgr мог копировать базу с одного сервера на другой – пользователю repmgrd нужен доступ по ssh без ввода пароля. Для этого на каждом из серверов нужно сгенерировать ssh public key. Этот public key нужно положить на все остальные сервера кластера в файл <code>~/.ssh/authorized_keys</code>. Это нужно сделать для пользователя, от которого будет запущен repmgr. Обычно это тот же пользователь, от имени которого запущен postgres. Создадим ключи на каждом сервере:</p>
+<pre><code>sudo -u postgres ssh-keygen -t rsa
+
+Generating public/private rsa key pair.
+Enter file in which to save the key (/var/lib/postgresql/.ssh/id_rsa):
+Created directory '/var/lib/postgresql/.ssh'.
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /var/lib/postgresql/.ssh/id_rsa.
+Your public key has been saved in /var/lib/postgresql/.ssh/id_rsa.pub.
+The key fingerprint is:
+SHA256:oqFJ3/Gr8oeBgQpAsKSlImbUOLroa/YaFbJ8AxlsBng postgresql@pg1
+</code></pre>
+<p>Публичный ключ из файла <code>/var/lib/postgresql/.ssh/id_rsa.pub</code> надо добавить на все остальные сервера кластера, в файл <code>~/.ssh/authorized_keys</code>. Заодно поправим права:</p>
+<pre><code>#на сервере pg1
+echo &quot;ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCoavDuAETBMZBD0NwRvSEDYL1avCIkSLzxMG50L6b7nIeasrfv90AGjARxID9THkUXDNkdKhfRIu+WGFYxlgZ6zqPQCyZyQvKjcJr325pbo9it474LpLpeHuPrXdeMSzSilxvAKvYX/ml7L9KtOnYMDusFK1XdGeV25qcj2OSLWBY168riW5vvGWFYTCdU6q9eQ+JN2zCpoZzXKNqhh+dpItt1QiKRw84u7EtUW6U02tw1V5nmO+HGyG2A50S5/JNS7lbj/7IYAXwIgtlBrf3mzCPCIoHbjlSny/V6sp3S7QWNrxynpkI7o+oMvJq5frAEpn0syiUmtOz56Qnw67GP postgres@pg2&quot; &gt;&gt; /var/lib/postgresql/.ssh/authorized_keys
+echo &quot;ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDfl8Rg47u97kGUPf7OwF4jeGhcIxVtWEVDk1AKJt5o3Y65v5jzrjoI5F0YrboEzr+oPu5BV24M6dOI5u3ysRBX/osQI2fBlt+hotAIWXPiP8UUy9CgIdQH59h/MJcp3jPH0KYQTwF8WJDr1skUcUzKGswuofBaElm5TpME+Oz2vygXEl2vL9Pfo5kfdsk9ov58cUJNlDGtxTo/Rzw9XFRnkBimzwvem/gmdpYBFb45ulsbLVmdBcv+QTU7PQ+knqIyERboTecS8wBYoKnlCTA0LZscvyeHjKwILSl9ZFfir3CRdYtxNqx4Zk/hMphx4Bt7hn96KUXRiMf3ODpd2yp1 postgres@pg3&quot; &gt;&gt; /var/lib/postgresql/.ssh/authorized_keys
+chown postgres /var/lib/postgresql/.ssh/authorized_keys
+chmod 600 /var/lib/postgresql/.ssh/authorized_keys
+</code></pre>
+<p>Убедимся, что доступ есть:</p>
+<pre><code>root@pg1:~# sudo -u postgres ssh pg2.lab.office -x 'w'
+09:04:07 up 3 days, 23:48,  1 user,  load average: 0.00, 0.00, 0.00
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+logan    pts/0    192.168.0.70     14:28    1:19   0.22s  0.02s sshd: logan [priv]
+</code></pre>
+<p>Для остальных серверов делаем по аналогии.</p>
+<p>Для того, чтобы процесс repmgr мог сам перезапускать постгрес - ему нужны соответствующие права. Чтобы их дать - создадим файл <code>/etc/sudoers.d/repmgr</code> и впишем туда:</p>
+<pre><code>Cmnd_Alias PGRE = /bin/systemctl status postgresql, \
+    /bin/systemctl start postgresql, \
+    /bin/systemctl stop postgresql, \
+    /bin/systemctl restart postgresql, \
+    /bin/systemctl reload postgresql
+
+postgres ALL=(ALL) NOPASSWD: PGRE
+</code></pre>
+<p>Это позволит пользователю postgres перезапускать процесс сервера postgres.</p>
+<p>Теперь нам надо настроить сам postgresql. Обязательный минимум:</p>
+<ul>
+<li>доступность из сети (директива <code>listen_addresses</code>)</li>
+<li>репликация (<code>wal_level</code>, <code>archive_mode</code>)</li>
+<li>лимит <code>max_wal_senders</code> - как минимум на 1 больше количества серверов в кластере</li>
+<li><code>hot_standby</code> - для серверов в режиме slave.</li>
+<li>права на репликацию в hba</li>
+</ul>
+<p>Если вы строите кластер на debian - настройки надо скопировать на все сервера кластера. Для centos это не обязательно, так как файл настроек лежит прямо в data directory и при клонировании repmgr вытащит файлы.</p>
+<p>Пример настроек - <code>/etc/postgresql/10/main/postgresql.conf</code>:</p>
+<pre><code># тут приведены не все настройки, а только то, что я поменял
+# часть настроек в файле закомментирована, а в части указаны другие значения.
+# Пользуйтесь поиском.
+listen_addresses = '*'
+
+wal_level = replica
+
+archive_mode = on
+archive_command = 'cp %p /var/lib/pg-arch/%f'
+
+max_wal_senders = 4
+
+hot_standby = on
+</code></pre>
+<p>В данном примере мы не удаляем архивированные сегменты, а перемещаем их папку <code>/var/lib/pg-arch/</code>. Это позволит восстановить &ldquo;отставший&rdquo; slave. Подробнее я писал <a href=/2018-01-05-pgsql-replica>здесь</a>. Эту папку нужно создать (владелец - postgres, права доступа - 700). Папку нужно периодически чистить – postgres сам не очищает архивы. В упомянутой выше статье вы найдете детальное описание.</p>
+<p>Пример настроек hba. В данном примере пользователь БД называется <code>repmgr</code>. Служебная база repmgr - <code>repmgrdb</code>:</p>
+<pre><code># Не менять! сломаются локальные операции!
+local   all             postgres                                peer
+
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+local   all             all                                     md5
+host    all             all             127.0.0.1/32            md5
+host    all             all             ::1/128                 md5
+
+# replication settings
+local   replication     all                                     peer
+host    replication     all             127.0.0.1/32            md5
+host    replication     all             ::1/128                 md5
+host    repmgrdb        repmgr          192.168.0.0/24          md5
+host    replication     repmgr          192.168.0.0/24          md5
+
+#remote access to server cluster. any DB, any user, any host, password required
+host    all             all             0.0.0.0/0               md5
+</code></pre>
+<p>С настройкой postgres закончили, перезапускаем сервер и создаем служебную базу и пользователя. Пароль для пользователя лучше сделать посложнее:</p>
+<pre><code>service postgresql status
+sudo -u postgres psql
+
+psql (10.4 (Debian 10.4-2.pgdg90+1))
+Type &quot;help&quot; for help.
+
+postgres=# create user repmgr with superuser;
+postgres=# alter role repmgr with password 'Ahn7yaechie6hoe0av8eF0ei';
+postgres=# create database repmgrdb owner repmgr;
+postgres=# \q
+</code></pre>
+<p>Чтобы repmgr мог обращаться к серверу БД и ему не требовалось вводить пароль – нужно создать файл <code>/var/lib/postgresql/.pgpass</code>. Владельцем файла должен быть пользователь postgres, права - 0600 (иначе он игнорируется). Структура файла - <code>IP:port:DB:user:password</code>. <code>*</code> означает &ldquo;любое&rdquo;. К сожалению pgpass не в состоянии работать с CIDR, то есть задать адрес как <code>192.168.0.*</code> можно, а <code>192.168.0.0/24</code> – нельзя. Пример файла:</p>
+<pre><code>*:5432:repmgrdb:repmgr:Ahn7yaechie6hoe0av8eF0ei
+*:5432:replication:repmgr:Ahn7yaechie6hoe0av8eF0ei
+</code></pre>
+<p>Вторая запись нужна для самого процесса репликации.</p>
+<p>Теперь настроим repmgr. Его настройки в debian лежат в файле <code>/etc/repmgr.conf</code>. Пример с комментариями:</p>
+<pre><code># ID узла (сервера). В рамках кластера обязательно уникальный
+node_id=1
+# hostname. Остальные узлы должны иметь возможность найти этот именно по этому имени.
+node_name='pg1.lab.office'
+# строка подключения к БД
+conninfo='host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2'
+# директория с данными postgres.
+data_directory='/var/lib/postgresql/10/main/'
+# режим репликации. Пока что поддерживается только этот
+replication_type=physical
+
+# log file. Не забудьте создать папку для него.
+log_file='/var/log/repmgr/repmgr.log'
+# записывать статус каждые 5 минут (300 секунд)
+log_status_interval=300
+
+# где находятся bin-файлы postgres.
+pg_bindir='/usr/lib/postgresql/10/bin/'
+
+# не использовать password из conninfo (строки выше)
+# мы храним пароль в .pgpass, это безопаснее. Потому - false
+use_primary_conninfo_password=false
+ssh_options='-q -o ConnectTimeout=10'
+
+# режим failover
+failover=manual
+# очередность выборов мастера в случае отказа
+# эта настройка и последующие применимы только если failover - auto
+priority=100
+reconnect_attempts=3
+reconnect_interval=5
+promote_command='/usr/bin/repmgr -f /etc/repmgr.conf standby promote --log-to-file'
+follow_command='/usr/bin/repmgr standby follow -f /etc/repmgr.conf --log-to-file --upstream-node-id=%n'
+
+# команды запуска, остановки и перезапуска сервиса. Должны соответствовать тому, что мы вписали в sudo.
+service_start_command = 'sudo -n /bin/systemctl start postgresql'
+service_stop_command =  'sudo -n /bin/systemctl stop postgresql'
+service_restart_command = 'sudo -n /bin/systemctl restart postgresql'
+service_reload_command = 'sudo -n /bin/systemctl reload postgresql'
+</code></pre>
+<p>Теперь можно зарегистрировать первый сервер в кластере:</p>
+<pre><code>sudo -u postgres repmgr -f /etc/repmgr.conf primary register
+</code></pre>
+<p>Проверим, что он там появился:</p>
+<pre><code>root@pg1:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ ID | Name           | Role    | Status    | Upstream       | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+ 1  | pg1.lab.office | primary | * running |                | default  | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+</code></pre>
+<p>Все ок. Теперь настроим остальные два сервера. Они настраиваются по аналогии с первым сервером. Только в конфиге repmgr.conf нужно поменять node_id, node_name и conninfo. На 2 и 3 серверах запускать postgres не нужно.</p>
+<p>Удалим существующий data-dir и склонируем базу с мастера:</p>
+<pre><code>root@pg2:~# service postgresql stop
+root@pg2:~# rm -rf /var/lib/postgresql/10/main/*
+root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf -h pg1.lab.office -U repmgr -d repmgrdb standby clone
+
+NOTICE: destination directory &quot;/var/lib/postgresql/10/main/&quot; provided
+NOTICE: starting backup (using pg_basebackup)...
+HINT: this may take some time; consider using the -c/--fast-checkpoint option
+NOTICE: standby clone (using pg_basebackup) complete
+NOTICE: you can now start your PostgreSQL server
+HINT: for example: sudo -n /bin/systemctl start postgresql
+HINT: after starting the server, you need to register this standby with &quot;repmgr standby register&quot;
+</code></pre>
+<p>Запускаем сервер, регистрируемся:</p>
+<pre><code>root@pg2:~# service postgresql start
+root@pg2:~# sudo -u postgres /usr/bin/repmgr standby register
+NOTICE: standby node &quot;pg2.lab.office&quot; (id: 2) successfully registered
+</code></pre>
+<p>Проверяем, что изменилось:</p>
+<pre><code>root@pg1:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ ID | Name           | Role    | Status    | Upstream       | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+ 1  | pg1.lab.office | primary | * running |                | default  | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 2  | pg2.lab.office | standby |   running | pg1.lab.office | default  | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+</code></pre>
+<p>Третий сервер запускаем по аналогии со вторым.</p>
+<h2 id=failover>Failover
+<span>
+<a href=#failover><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Итак, мастер сломался и надо переключится на slave:</p>
+<pre><code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ ID | Name           | Role    | Status        | Upstream       | Location | Connection string
+----+----------------+---------+---------------+----------------+----------+-------------------------------------------------------------------
+ 1  | pg1.lab.office | primary | ? unreachable |                | default  | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 2  | pg2.lab.office | standby |   running     | pg1.lab.office | default  | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 3  | pg3.lab.office | standby |   running     | pg1.lab.office | default  | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+
+WARNING: following issues were detected
+  - when attempting to connect to node &quot;pg1.lab.office&quot; (ID: 1), following error encountered :
+&quot;could not connect to server: Connection refused
+    Is the server running on host &quot;pg1.lab.office&quot; (192.168.0.17) and accepting
+    TCP/IP connections on port 5432?&quot;
+  - node &quot;pg1.lab.office&quot; (ID: 1) is registered as an active primary but is unreachable
+</code></pre>
+<p>Прежде чем продолжить – обязательно убедитесь, что старый мастер (pg1) отключен и не &ldquo;оживет&rdquo; в самый неподходящий момент. Repmgr не умеет работать с fencing-ом и вы можете потерять часть данных.</p>
+<p>Повышаем pg2 до мастера:</p>
+<pre><code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf standby promote
+NOTICE: promoting standby to primary
+DETAIL: promoting server &quot;pg2.lab.office&quot; (ID: 2) using &quot;/usr/lib/postgresql/10/bin/pg_ctl  -w -D '/var/lib/postgresql/10/main/' promote&quot;
+    waiting for server to promote.... done
+server promoted
+NOTICE: STANDBY PROMOTE successful
+DETAIL: server &quot;pg2.lab.office&quot; (ID: 2) was successfully promoted to primary
+</code></pre>
+<p>Проверяем статус:</p>
+<pre><code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ ID | Name           | Role    | Status    | Upstream       | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+ 1  | pg1.lab.office | primary | - failed  |                | default  | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 2  | pg2.lab.office | primary | * running |                | default  | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 3  | pg3.lab.office | standby |   running | pg1.lab.office | default  | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+</code></pre>
+<p>pg3 по-прежнему ждет данных от pg1. Его нужно переключить на новый мастер:</p>
+<pre><code>root@pg3:~# sudo -u postgres /usr/bin/repmgr standby follow -f /etc/repmgr.conf --upstream-node-id=2
+NOTICE: setting node 3's primary to node 2
+NOTICE: restarting server using &quot;sudo -n /bin/systemctl restart postgresql&quot;
+NOTICE: STANDBY FOLLOW successful
+DETAIL: node 3 is now attached to node 2
+</code></pre>
+<p>Проверим состояние кластера:</p>
+<pre><code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ ID | Name           | Role    | Status    | Upstream       | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+ 1  | pg1.lab.office | primary | - failed  |                | default  | host=pg1.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 2  | pg2.lab.office | primary | * running |                | default  | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 3  | pg3.lab.office | standby |   running | pg2.lab.office | default  | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+
+WARNING: following issues were detected
+  - when attempting to connect to node &quot;pg1.lab.office&quot; (ID: 1), following error encountered :
+&quot;could not connect to server: Connection refused
+    Is the server running on host &quot;pg1.lab.office&quot; (192.168.0.17) and accepting
+    TCP/IP connections on port 5432?&quot;
+</code></pre>
+<p>Теперь мы можем убрать старый сервер из конфигурации:</p>
+<pre><code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf primary unregister --node-id=1
+</code></pre>
+<p>Проверяем еще раз:</p>
+<pre><code>root@pg2:~# sudo -u postgres repmgr -f /etc/repmgr.conf cluster show
+ ID | Name           | Role    | Status    | Upstream       | Location | Connection string
+----+----------------+---------+-----------+----------------+----------+-------------------------------------------------------------------
+ 2  | pg2.lab.office | primary | * running |                | default  | host=pg2.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+ 3  | pg3.lab.office | standby |   running | pg2.lab.office | default  | host=pg3.lab.office user=repmgr dbname=repmgrdb connect_timeout=2
+</code></pre>
+<p>Теперь можно спокойно чинить pg1, без риска что он внезапно вернется в сеть и будет конфликт записи в slave.</p>
+<h2 id=возврат-мастера>Возврат мастера
+<span>
+<a href=#%d0%b2%d0%be%d0%b7%d0%b2%d1%80%d0%b0%d1%82-%d0%bc%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Самый простой способ вернуть старый сервер - удалить его datadir и зарегистрировать заново как slave:</p>
+<pre><code>root@pg1:~# rm -rf /var/lib/postgresql/10/main/*
+root@pg1:~# sudo -u postgres repmgr -f /etc/repmgr.conf -h pg2.lab.office -U repmgr -d repmgrdb standby clone
+NOTICE: destination directory &quot;/var/lib/postgresql/10/main/&quot; provided
+NOTICE: starting backup (using pg_basebackup)...
+HINT: this may take some time; consider using the -c/--fast-checkpoint option
+NOTICE: standby clone (using pg_basebackup) complete
+NOTICE: you can now start your PostgreSQL server
+HINT: for example: sudo -n /bin/systemctl start postgresql
+HINT: after starting the server, you need to register this standby with &quot;repmgr standby register&quot;
+root@pg1:~# service postgresql start
+root@pg1:~# sudo -u postgres /usr/bin/repmgr standby register
+WARNING: --upstream-node-id not supplied, assuming upstream node is primary (node ID 2)
+NOTICE: standby node &quot;pg1.lab.office&quot; (id: 1) successfully registered
+</code></pre>
+<h2 id=заключение>Заключение
+<span>
+<a href=#%d0%b7%d0%b0%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Repmgr - простой, понятный инструмент, который сильно облегчает операции в master-slave конфигурациях. Он не позволит полностью автоматизировать защиту от отказов (для этого нужны другие инструменты), но поможет в простых конфигурациях. Я очень рекомендую использовать его – самостоятельно или в сочетании с pgpool-II. В таком варианте pgpool отвечает за балансировку запросов, фенсинг и инициирует failover, когда это необходимо. Repmgr отвечает за сам низкоуровневый процесс failover (и это намного лучше, чем рекомендуемый pgpool набор жутковатых скриптов!).</p>
+<p>При этом я очень не рекомендую:</p>
+<ul>
+<li>использовать автоматический failover средствами repmgr. Строго говоря – он не работает. Для работы repmgr нужен работающий сервер postgresql, и если postgresql master упал – repmgr не в состоянии самостоятельно переключится (из-за упавшего мастера)</li>
+<li>использовать bidirectional multimaster. Эта функция заявлена в описании, но работает крайне плохо - сервера теряют связь друг с другом и часто трут конфликтующие данные. Проверено до версии <strong>4.0.5</strong></li>
+</ul>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2018-08-22</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2018-08-22-repmgr/>https://prudnitskiy.pro/post/2018-08-22-repmgr/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/postgresql/>#postgresql</a></li>
+<li><a href=https://prudnitskiy.pro/tags/db/>#db</a></li>
+<li><a href=https://prudnitskiy.pro/tags/reliability/>#reliability</a></li>
+</ul>
+</div>
+</div>
+</article>
+<div class="pagination post-pagination">
+<div class="left pagination-item">
+<a href=/post/2018-12-14-cfssl/>CFSS: TLS CA со скоростью молнии</a>
+</div>
+<div class="right pagination-item">
+<a href=/post/2018-08-02-yubikey-gpg/>Yubikey + GPG – быстрый старт</a>
+</div>
+</div>
+</main>
+<footer class=common-footer>
+<div class=common-footer-bottom>
+<div class=copyright>
+<p>© Paul Rudnitskiy, 2023<br>
+Powered by <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, theme <a target=_blank rel="noopener noreferrer" href=https://github.com/mitrichius/hugo-theme-anubis>Anubis</a>.<br>
+</p>
+</div>
+<button class=theme-switcher>
+Dark theme
+</button>
+<script>const STORAGE_KEY='user-color-scheme',defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia('(prefers-color-scheme: dark)');const autoChangeScheme=a=>{currentTheme=a.matches?'dark':'light',document.documentElement.setAttribute('data-theme',currentTheme),changeButtonText()};document.addEventListener('DOMContentLoaded',function(){switchButton=document.querySelector('.theme-switcher'),currentTheme=detectCurrentScheme(),currentTheme=='dark'&&document.documentElement.setAttribute('data-theme','dark'),currentTheme=='auto'&&(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)),changeButtonText(),switchButton.addEventListener('click',switchTheme,!1)});function detectCurrentScheme(){return localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light':'light'}function changeButtonText(){switchButton.textContent=currentTheme=='dark'?"Light theme":"Dark theme"}function switchTheme(a){currentTheme=='dark'?(localStorage.setItem(STORAGE_KEY,'light'),document.documentElement.setAttribute('data-theme','light'),currentTheme='light'):(localStorage.setItem(STORAGE_KEY,'dark'),document.documentElement.setAttribute('data-theme','dark'),currentTheme='dark'),changeButtonText()}</script>
+</div>
+<p class="h-card vcard">
+<a href=https://prudnitskiy.pro class="p-name u-url url fn" rel=me>Paul Rudnitskiy</a>
+<img class=u-photo src=/assets/avatars/ba.jpg>
+</p>
+</footer>
+</div>
+</body>
+</html>

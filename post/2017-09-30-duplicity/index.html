@@ -1,0 +1,256 @@
+<!doctype html><html lang=ru-ru data-theme>
+<head>
+<meta charset=utf-8>
+<meta name=HandheldFriendly content="True">
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=referrer content="no-referrer-when-downgrade">
+<title>Duplicity – экстремально простой способ резервного копирования - SRE Blog</title>
+<meta name=description content="краткое руководство по настройке duplicity - очень простой системы резеревного копирования">
+<link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico>
+<link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png>
+<link rel=stylesheet href=https://prudnitskiy.pro/css/style.min.63aba568b2393a8f5a364a508001b05c9412a603d1a0a69bd50f9944649f9c56.css integrity="sha256-Y6ulaLI5Oo9aNkpQgAGwXJQSpgPRoKab1Q+ZRGSfnFY=">
+<script src=https://prudnitskiy.pro/js/script.min.510c781c39dbb21b4c76d85c82e2bdf4689220adbb7cd61e49e9d293e442fb42.js type=text/javascript integrity="sha256-UQx4HDnbshtMdthcguK99GiSIK27fNYeSenSk+RC+0I="></script>
+<meta property="og:title" content="Duplicity – экстремально простой способ резервного копирования">
+<meta property="og:description" content="краткое руководство по настройке duplicity - очень простой системы резеревного копирования">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://prudnitskiy.pro/post/2017-09-30-duplicity/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2017-09-30T20:50:10+00:00">
+<meta property="article:modified_time" content="2017-09-30T20:50:10+00:00">
+<meta name=twitter:card content="summary">
+<meta name=twitter:title content="Duplicity – экстремально простой способ резервного копирования">
+<meta name=twitter:description content="краткое руководство по настройке duplicity - очень простой системы резеревного копирования">
+</head>
+<body>
+<a class=skip-main href=#main>Skip to main content</a>
+<div class=container>
+<header class=common-header>
+<div class=header-top>
+<h1 class=site-title>
+<a href=/>SRE Blog</a>
+</h1>
+<ul class=social-icons>
+<li>
+<a href=https://github.com/prudnitskiy title=Github rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentcolor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6.0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6.0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3.0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1.0-6.2-.3-40.4-.3-61.4.0.0-70 15-84.7-29.8.0.0-11.4-29.1-27.8-36.6.0.0-22.9-15.7 1.6-15.4.0.0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5.0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9.0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4.0 33.7-.3 75.4-.3 83.6.0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6.0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9.0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+</a>
+</li>
+<li>
+<a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentcolor" d="M416 32H31.9C14.3 32 0 46.5.0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6.0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3.0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2.0 38.5 17.3 38.5 38.5.0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6.0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2.0 79.7 44.3 79.7 101.9V416z"/></svg>
+</span>
+</a>
+</li>
+</ul>
+</div>
+<nav>
+<a href=https://prudnitskiy.pro/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ title=Blog>Blog</a>
+</nav>
+</header>
+<main id=main tabindex=-1>
+<article class="post h-entry">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title">Duplicity – экстремально простой способ резервного копирования</h1>
+</header>
+</div>
+<div class="content e-content">
+<p>Как гласит старинная шутка, системные администраторы делятся на две группы: те, которые не делают бэкапы, и те, которые уже делают бэкапы. Систем резеревного копирования существует великое множество, от простейшего самописного скрипта до огромных монстров ценой в &ldquo;боинг&rdquo;. Все системы нужны для разных целей и выполняют разные задачи.</p>
+<p>Основная, самая известная и популярная система в мире unix и linux – это, безусловно, bacula. Умеет bacula очень много - сложные расписания и политики хранения, шифрование данных и клиент-серверного трафика, управление операциями &ldquo;на ходу&rdquo;, десятки способов упаковки и проверки данных. Полный список возможностей bacula занимает несколько страниц мелкого текста. Основной минус бакулы находится ровно там, где находится ее плюс. Внедрение и настройка бакулы - это приключение, как минимум, на неделю. Документации очень много (но ее все равно не хватает). Бакула состоит из 4 самостоятельных компонентов (director, storage, filedaemon, console), каждый из которых настраивается и живет отдельно. Все эти компоненты имеют сложные взаимоотношения и должны быть доступны друг другу напрямую, что тоже жизнь не облегчает. Элементарный конфиг bacula легко может весить десятки килобайт (и bacula очень трепетно относится к опечаткам в конфиге - он в лучшем случае вообще не прочитается, а в худшем сервис упадет). В случае, если нужно делать резервные копии с одного-двух серверов - bacula - явный оверкилл. Вместо сложного комбайна нужен простой и понятный молоток. И такой молоток есть - он называется duplicity.</p>
+<p>Duplicity - это очень просто. Это одна-единственная команда, которая запускается на том сервере, откуда будут копироваться данные. Все, что она может:</p>
+<ul>
+<li>сделать резервную копию. Резервная копия пакуется в блоки (назывются тома), и, по желанию, шифруются. Резервная копия может быть или полной, или инкрементальной. Уровень определяется возрастом копии - если последняя полная копия старше определенного возраста - будет сделана полная, если нет - инкрементальная копия.</li>
+<li>отправить резервную копию на удаленный сервер. Удаленный сервер может быть rsync, ftp, scp, s3 (вариантов много). Можно хранить прямо в файловой системе. Устройства хранения (ленточные библиотеки, дисковые массивы) – не поддерживатюся.</li>
+<li>найти расходждения между каталогом и определенной версией бекапа. Полезно, чтобы понять, что изменилось с момента бэкапа.</li>
+<li>показать список файлов в бэкапе.</li>
+<li>восстановить файлы из бэкапа (или весь бэкап целиком).</li>
+<li>почистить удаленный сервер от старых бэкапов.</li>
+</ul>
+<p>На этом функционал duplicity заканчивается. Ничего сложного, головоломного, неочевидного. Система, понятная, как кирпич.</p>
+<h2 id=установка-и-настройка>Установка и настройка
+<span>
+<a href=#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Duplicty входит в пакет с одноименным названием, и устанавливается традиционно для вашей операционной системы:</p>
+<pre><code>#debian, ubuntu
+apt-get install duplicity
+
+#centos, redhat, fedora
+yum install duplicity
+</code></pre>
+<p>Теперь нужно решить, куда будут отправляться пакеты. Duplicty не может работать с удаленным сервером самостоятельно - в зависимости от типа удаленного сервера ему потребуется тот или иной пакет. Сам duplicity только &ldquo;дирижирует процессом&rdquo;. Самые ходовые типы серверов и пакеты:</p>
+<ul>
+<li>ftp, ftps (ftp over TLS): ncftp</li>
+<li>rsync: rsync</li>
+<li>s3 (aws S3, openstack swift, ceph object gateway, minio): boto</li>
+</ul>
+<p>Если планируется шифровать и/или подписывать бэкап - нужно сгенерировать gpg-ключ. Шифровать бэкап рекомендуется, если нет доверия серверу хранения. Правило хорошего тона гласят, что доверия нет никогда и никому. Помните о том, что бэкап, по сути – отложеное по времени нарушение безопасности. Ключ генерируется вполне традиционым способом:</p>
+<pre><code>gpg --gen-key
+</code></pre>
+<p>Параметры ключа (размер, алгоритм) менять не обязательно, они вполне разумны. После окончания генерации GPG вернет идентификатор ключа. Его так же можно посмотреть вот так:</p>
+<pre><code>gpg --list-keys
+
+/root/.gnupg/pubring.gpg
+------------------------
+pub   2048R/F6822D5F 2017-01-28
+uid                  Paul I Rudnitskiy (bck server) &lt;admin@prudnitskiy.pro&gt;
+sub   2048R/292EB891 2017-01-28
+</code></pre>
+<p>ID нам чуть дальше пригодится, рекомендую его запомнить.</p>
+<p>Так же очень рекомендуется сделать разеревную копию GPG-ключа. Если бэкап зашифрован - потеря ключа автоматически означает потерю возможности восстановить данные из бэкапа. Выгрузим ключ, чтобы сохранить его в надежное место:</p>
+<pre><code>gpg --export-secret-keys -a F6822D5F  &gt; backup.asc
+</code></pre>
+<h2 id=резервное-копирование>Резервное копирование
+<span>
+<a href=#%d1%80%d0%b5%d0%b7%d0%b5%d1%80%d0%b2%d0%bd%d0%be%d0%b5-%d0%ba%d0%be%d0%bf%d0%b8%d1%80%d0%be%d0%b2%d0%b0%d0%bd%d0%b8%d0%b5><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Общий принцип - <code>duplicity [args] {source} {destination}</code>. Аргументов множество, ниже я приведу пример и распишу, что означает каждый. Проще всего сделать shell-скрипт с командой и типовыми аргументами, чтобы не вспоминать их каждый раз</p>
+<pre><code>duplicity --verbosity notice \
+    --encrypt-key &quot;F6822D5F&quot; \
+    --full-if-older-than 14D \
+    --num-retries 3 \
+    --asynchronous-upload \
+    --volsize 100 \
+    --archive-dir /var/tmp/.duplicity \
+    --log-file /var/log/duplicity.log \
+    --exclude &quot;/var/lib/postgresql/9.5/main/archive&quot; \
+    &quot;/var/lib/postgresql/9.5/main/&quot; \
+    &quot;ftp://bckuser:iem4ob9bah1FohNi@verysecret.prudnitskiy.pro/pgsql&quot;
+</code></pre>
+<p>На что обратить внимание:</p>
+<ul>
+<li><em>verbosity</em> - уровень &ldquo;говорливости&rdquo; при работе. Рекомендуется info при отладке (показывает файлы и текущие операции) и notice в production (кратко сообщает о текущем этапе работы)</li>
+<li><em>encrypt-key</em> - ID ключа для шифрования. Важен, если ключей несколько. Если шифровать не нужно - используйте аргумент <code>--no-encryption</code>. При шифровании gpg спросит пароль ключа шифрования. Побеждается или настройкой gpg-agent или созданием переменной <code>PASSPHRASE</code> с паролем.</li>
+<li><em>full-if-older-than</em> - через срок после создания полной копии нужно сделать не инкрементальную, а снова полную копию. В данном примере - 14 дней.</li>
+<li><em>volsize</em> - размер одного тома в мегабайтах. Каждый том пакуется и загружается на сервер отдельно, это отдельный файл.</li>
+<li><em>archive-dir</em> - папка, где duplicity локально хранит метаданные (информацию о томах и их содержимом). Копия метаданных лежит на сервере. Если по какой-то причине метаданные пропадут - duplicity придется скачать копию метаданных с сервера перед началом бэкапа. Размер папки метаданных пропорционально зависит от количества файлов и количества бэкапов, так что стоит выделить ей побольше места.</li>
+<li><em>exclude</em> - позволяет исключить папку из бэкапа. аргументов exclude может быть несколько.</li>
+<li><em>destination</em> - последний аргумент, куда копируем данные. Задается в виде классического url. URL для копии в локальную файловую систему имеет вид <code>file:///path/to/folder</code></li>
+</ul>
+<p>Проверка состояния бэкапов на удаленном сервере:</p>
+<pre><code>duplicity collection-status &quot;ftp://bckuser:iem4ob9bah1FohNi@verysecret.prudnitskiy.pro/pgsql&quot; \
+    --archive-dir /var/tmp/.duplicity
+</code></pre>
+<p>Пример ответа:</p>
+<pre><code>NcFTP version is 3.2.5
+Local and Remote metadata are synchronized, no sync needed.
+Last full backup date: Fri Sep 15 04:10:03 2017
+Collection Status
+-----------------
+Connecting with backend: FTPBackend
+Archive dir: /var/tmp/.duplicity/c9edc22d8a99b972fdf4bd3cec26e19f
+
+Found 1 secondary backup chain.
+Secondary chain 1 of 1:
+-------------------------
+Chain start time: Thu Aug 31 04:10:03 2017
+Chain end time: Thu Sep 14 04:10:02 2017
+Number of contained backup sets: 15
+Total number of contained volumes: 252
+ Type of backup set:                            Time:      Num volumes:
+                Full         Thu Aug 31 04:10:03 2017               137
+         Incremental         Fri Sep  1 04:10:02 2017                 6
+----------------------------CUT----------------------------------------
+-------------------------
+
+
+Found primary backup chain with matching signature chain:
+-------------------------
+Chain start time: Fri Sep 15 04:10:03 2017
+Chain end time: Fri Sep 29 04:10:03 2017
+Number of contained backup sets: 15
+Total number of contained volumes: 245
+ Type of backup set:                            Time:      Num volumes:
+                Full         Fri Sep 15 04:10:03 2017               142
+         Incremental         Sat Sep 16 04:10:02 2017                 8
+----------------------------CUT----------------------------------------
+         Incremental         Fri Sep 29 04:10:03 2017                 7
+-------------------------
+No orphaned or incomplete backup sets found.
+</code></pre>
+<p>Duplicity не позволяет помечать бэкап как устаревший автоматически (retention в терминологии &ldquo;взрослых&rdquo; систем). Чистить ненужные бэкапы придется в ручном режиме:</p>
+<pre><code>duplicity --verbosity notice \
+--archive-dir /var/tmp/.duplicity \
+--force \
+remove-all-but-n-full 4 \
+&quot;ftp://bckuser:iem4ob9bah1FohNi@verysecret.prudnitskiy.pro/pgsql&quot;
+</code></pre>
+<p>Эта команда удалит все бэкапы старше 4 последних полных бэкапов. В примере выше мы делали полный бекап каждые 2 недели, то есть duplicity удалит бэкапы старше 2 месяцев (8 недель). Если убрать ключ <code>--force</code> – duplicity найдет старые бэкапы, но не будет их удалять - только выведет на консоль. Забывать о чистке не рекомендуется - место на сервере для резервных копий может неожиданно кончиться и оставить вас без свежих бэкапов. Выясняется это весьма болезненно.</p>
+<h2 id=проверка-и-восстановление>Проверка и восстановление
+<span>
+<a href=#%d0%bf%d1%80%d0%be%d0%b2%d0%b5%d1%80%d0%ba%d0%b0-%d0%b8-%d0%b2%d0%be%d1%81%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%bb%d0%b5%d0%bd%d0%b8%d0%b5><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Посмотрим файлы, которые у нас есть в бэкапе:</p>
+<pre><code>duplicity --archive-dir /var/tmp/.duplicity list-current-files \
+    &quot;ftp://bckuser:iem4ob9bah1FohNi@verysecret.prudnitskiy.pro/pgsql&quot;
+</code></pre>
+<p>Пример ответа:</p>
+<pre><code>NcFTP version is 3.2.5
+Local and Remote metadata are synchronized, no sync needed.
+Last full backup date: Sat Sep 29 04:10:03 2017
+Mon Oct  2 04:10:02 2017 .
+Mon Aug 29 21:07:04 2016 PG_VERSION
+Mon Oct  2 04:10:02 2017 backup_label
+-----------------------CUT---------------------------------
+</code></pre>
+<p>Команда выше покажет состояние на момент <em>последнего</em> бэкапа. Чтобы получить информацию из более старых бэкапов, нужно использовать ключ <code>-t</code>. К примеру, <code>-t6D</code> вернет информацию о бэкапе, сделаном 6 дней назад.</p>
+<p>Восстановление данных выглядит ровно так же, как бэкап, нужно просто поменять местами source (откуда брать данные) и destination:</p>
+<pre><code>duplicity --verbosity notice \
+    --encrypt-key &quot;F6822D5F&quot; \
+    --archive-dir /var/tmp/.duplicity \
+    --log-file /var/log/duplicity.log \
+    &quot;ftp://bckuser:iem4ob9bah1FohNi@verysecret.prudnitskiy.pro/pgsql&quot; \
+    &quot;/var/lib/postgresql/9.5/main/&quot;
+</code></pre>
+<p>На что обратить внимание:</p>
+<ul>
+<li>Если нужно восстановить бэкап на определенную дату - выручает ключ <code>-t</code></li>
+<li>Для восстановления определенного файла нужно использовать ключ <code>--file-to-restore</code>. Таких ключей может быть несколько.</li>
+<li>Восстановление возможно только в совершенно пустую папку</li>
+<li>Для восстановления duplicity вытащит с сервера резервных копий <em>весь</em> полный бэкап и все инкрементальные бэкапы с момента полного до точки восстановления. Места уйдет много.</li>
+</ul>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2017-09-30</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2017-09-30-duplicity/>https://prudnitskiy.pro/post/2017-09-30-duplicity/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/backup/>#backup</a></li>
+</ul>
+</div>
+</div>
+</article>
+<div class="pagination post-pagination">
+<div class="left pagination-item">
+<a href=/post/2018-01-05-pgsql-replica/>Потоковая репликация в PostgreSQL – короткое введение</a>
+</div>
+<div class="right pagination-item">
+<a href=/post/2017-09-15-jekyll/>Как (и зачем) перевести блог на статический сайт</a>
+</div>
+</div>
+</main>
+<footer class=common-footer>
+<div class=common-footer-bottom>
+<div class=copyright>
+<p>© Paul Rudnitskiy, 2023<br>
+Powered by <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, theme <a target=_blank rel="noopener noreferrer" href=https://github.com/mitrichius/hugo-theme-anubis>Anubis</a>.<br>
+</p>
+</div>
+<button class=theme-switcher>
+Dark theme
+</button>
+<script>const STORAGE_KEY='user-color-scheme',defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia('(prefers-color-scheme: dark)');const autoChangeScheme=a=>{currentTheme=a.matches?'dark':'light',document.documentElement.setAttribute('data-theme',currentTheme),changeButtonText()};document.addEventListener('DOMContentLoaded',function(){switchButton=document.querySelector('.theme-switcher'),currentTheme=detectCurrentScheme(),currentTheme=='dark'&&document.documentElement.setAttribute('data-theme','dark'),currentTheme=='auto'&&(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)),changeButtonText(),switchButton.addEventListener('click',switchTheme,!1)});function detectCurrentScheme(){return localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light':'light'}function changeButtonText(){switchButton.textContent=currentTheme=='dark'?"Light theme":"Dark theme"}function switchTheme(a){currentTheme=='dark'?(localStorage.setItem(STORAGE_KEY,'light'),document.documentElement.setAttribute('data-theme','light'),currentTheme='light'):(localStorage.setItem(STORAGE_KEY,'dark'),document.documentElement.setAttribute('data-theme','dark'),currentTheme='dark'),changeButtonText()}</script>
+</div>
+<p class="h-card vcard">
+<a href=https://prudnitskiy.pro class="p-name u-url url fn" rel=me>Paul Rudnitskiy</a>
+<img class=u-photo src=/assets/avatars/ba.jpg>
+</p>
+</footer>
+</div>
+</body>
+</html>

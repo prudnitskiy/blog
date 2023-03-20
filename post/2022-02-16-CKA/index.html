@@ -1,0 +1,173 @@
+<!doctype html><html lang=ru-ru data-theme>
+<head>
+<meta charset=utf-8>
+<meta name=HandheldFriendly content="True">
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=referrer content="no-referrer-when-downgrade">
+<title>Как сдать экзамен Cerified Kubernetes Administrator: личный опыт - SRE Blog</title>
+<meta name=description content="Как я сдавал (и сдал) CKA">
+<link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico>
+<link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png>
+<link rel=stylesheet href=https://prudnitskiy.pro/css/style.min.63aba568b2393a8f5a364a508001b05c9412a603d1a0a69bd50f9944649f9c56.css integrity="sha256-Y6ulaLI5Oo9aNkpQgAGwXJQSpgPRoKab1Q+ZRGSfnFY=">
+<script src=https://prudnitskiy.pro/js/script.min.510c781c39dbb21b4c76d85c82e2bdf4689220adbb7cd61e49e9d293e442fb42.js type=text/javascript integrity="sha256-UQx4HDnbshtMdthcguK99GiSIK27fNYeSenSk+RC+0I="></script>
+<meta property="og:title" content="Как сдать экзамен Cerified Kubernetes Administrator: личный опыт">
+<meta property="og:description" content="Как я сдавал (и сдал) CKA">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://prudnitskiy.pro/post/2022-02-16-CKA/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2022-02-16T20:00:00+00:00">
+<meta property="article:modified_time" content="2022-02-16T20:00:00+00:00">
+<meta name=twitter:card content="summary">
+<meta name=twitter:title content="Как сдать экзамен Cerified Kubernetes Administrator: личный опыт">
+<meta name=twitter:description content="Как я сдавал (и сдал) CKA">
+</head>
+<body>
+<a class=skip-main href=#main>Skip to main content</a>
+<div class=container>
+<header class=common-header>
+<div class=header-top>
+<h1 class=site-title>
+<a href=/>SRE Blog</a>
+</h1>
+<ul class=social-icons>
+<li>
+<a href=https://github.com/prudnitskiy title=Github rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentcolor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6.0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6.0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3.0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1.0-6.2-.3-40.4-.3-61.4.0.0-70 15-84.7-29.8.0.0-11.4-29.1-27.8-36.6.0.0-22.9-15.7 1.6-15.4.0.0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5.0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9.0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4.0 33.7-.3 75.4-.3 83.6.0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6.0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9.0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+</a>
+</li>
+<li>
+<a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me>
+<span class=inline-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentcolor" d="M416 32H31.9C14.3 32 0 46.5.0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6.0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3.0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2.0 38.5 17.3 38.5 38.5.0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6.0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2.0 79.7 44.3 79.7 101.9V416z"/></svg>
+</span>
+</a>
+</li>
+</ul>
+</div>
+<nav>
+<a href=https://prudnitskiy.pro/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ title=Blog>Blog</a>
+</nav>
+</header>
+<main id=main tabindex=-1>
+<article class="post h-entry">
+<div class=post-header>
+<header>
+<h1 class="p-name post-title">Как сдать экзамен Cerified Kubernetes Administrator: личный опыт</h1>
+</header>
+</div>
+<div class="content e-content">
+<p>Экзамен Kubernetes Certified Administrator (CKA) по праву считается самым сложным из &ldquo;базовых&rdquo;. Интернет буквально заполнен жалобами людей, которые заплатили 400$ за попытку и не смогли его сдать. Linux Foundation предлагает одну дополнительную попытку и тестовый вариант экзамена (аж 3 тестовых сессии). Это не помогает все равно - LFS сначала сделали упрощенный вариант CKAD (Certified Kubernetes Application Developer), а потом - еще более упрощенный CKAN. Я этот экзамен сдал. С первой попытки и на 86% (то есть я сделал одну ошибку в одном сложном вопросе). Вся подготовка заняла пол-года (на момент старта знания у меня были только теоретические). В этой статье я расскажу, как я готовился, зачем это вообще надо и на что обращать внимание.</p>
+<h2 id=мотивация>Мотивация
+<span>
+<a href=#%d0%bc%d0%be%d1%82%d0%b8%d0%b2%d0%b0%d1%86%d0%b8%d1%8f><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Kubernetes переживает сейчас бурный рост и его используют очень многие компании. Его ближайший конкурент mesos прекратил свою разработку (потому, что превосходство k8s - подавляющее). Другой конкурент - Hashicorp Nomad - на самом деле не совсем конкурент, так как решает несколько иные вопросы. Состояние Docker Swarm настолько ужасно, что Mirantis не убивает его, по-моему, из чистой жалости &ndash; я ни разу не видел сколько-то работающих конфигураций Swarm, а в тестах он ведет себя настолько нестабильно, что непонятно, зачем он в принципе нужен. Linux Foundation придумали 3 программы сертификации для тех, кто работает с K8s:</p>
+<ul>
+<li>Certified Kubernetes Administrator (CKA). Экзамен для тех, кто строит и поддерживает инфраструктуры на базе K8s (operations engineering team)</li>
+<li>Certified Kubernetes Application Developer (CKAD). Экзамен для разработчиков, который проверяет знание best practices по написанию и развертыванию приложений внутри K8s. Этакий CKA на минималках с упором именно на deploy.</li>
+<li>Certified Kubernetes Security (CKS). Частично повторяет CKA, но с упором на безопасность. Для сдачи этого экзамена нужно иметь активный CKA - экзамен частично строится на его программе.</li>
+<li>Certified Kubernetes Associate (CKAN). CKAD на минималках, совсем-совсем базовые вопросы для тех, кому и CKAD слишком сложно (все равно не сдают).</li>
+</ul>
+<p>Все экзамены из &ldquo;проф-линейки&rdquo; (то есть исключая CKAN) стоят по 400$ за попытку, сдать их надо за год с момента оплаты. Каждый экзамен дает право на одну бесплатную пересдачу (в течении того же самого года). Приятная особенность - сдавать экзамены можно дома. За экзамен выдают электронный именной сертификат, который действует три года и очень нравится рекрутерам :)</p>
+<h2 id=процесс-сдачи>Процесс сдачи
+<span>
+<a href=#%d0%bf%d1%80%d0%be%d1%86%d0%b5%d1%81%d1%81-%d1%81%d0%b4%d0%b0%d1%87%d0%b8><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Процесс в целом похож на классический экзамен для получения сертификата. Проводится он на английском языке (для ценителей есть японский и китайский варианты). Экзамен сдается дома с помощью прокторинга - нужно предоставить специальной программе доступ к рабочему столу компьютера и камере, специальный человек по ту сторону экрана (проктор) будет следить, чтобы экзаменуемый не списывал и ему не подсказывали. В целом условия довольно типичные:</p>
+<ul>
+<li>Нельзя иметь при себе какие-либо смарт-устройства (телефон, смарт-часы, ноутбук)</li>
+<li>На столе не может быть ничего, кроме, собственно, компа для сдачи</li>
+<li>Напитки разрешены только прозрачные и в прозрачной же таре</li>
+<li>На старте экзамена проктор просит показать два разных ID, одно из которых должно иметь ФИО латиницей (именно так, как оно записано в заявке на экзамен) и фото.</li>
+<li>Комната должна быть пуста и в ней не должно быть других людей</li>
+<li>Запрещены наушники</li>
+</ul>
+<p>Экзамен идет 2 часа (раньше было 3, поменяли в прошлом году) и времени, на самом деле, довольно мало. Многие из сдающих не успевают ответить на все вопросы, я слышал это много раз. Все вопросы (это важная часть) - практические, в экзамене вообще нет теоретических вопросов. Это, на самом деле, один из основных секретов сложности экзамена &ndash; так, как нет теоретических вопросов &ndash; их невозможно списать и заучить. Вместо этого в рамках экзамена выдается тестовое окружение (SSH консоль прямо в окне браузера) и практические задачи что-то сделать: создать/удалить deployment, привязать secret и так далее. Вопросы можно условно поделить на &ldquo;простые&rdquo; и &ldquo;сложные&rdquo;, за &ldquo;сложные&rdquo; дают больше баллов. Именно по этому имеет смысл сначала просмотреть все вопросы. Если на вопрос можно сразу ответить (меньше, чем за минуту) - отвечаем, нет &ndash; идем дальше. После этого имеет смысл уделить время сложным вопросам, чтобы заработать больше баллов. На 2 часа выдается порядка 20 вопросов, то есть это 6 минут на вопрос в среднем. Быстрее ответите на простые вопросы &ndash; больше времени будет на сложные. В процессе экзамена никаких подсказок не будет, балл сразу тоже не покажут &ndash; письмо с оценкой приходит через сутки-двое. На экзамене разрешено использовать официальную документацию kubernetes (с оффсайта), включая справочник по API. Так же можно использовать github проекта (там есть референсные конфигурации, например - готовые конфиги PV/PVC). В принципе можно использовать и встроенные механизмы помощи (<code>kubectl explain</code>, <code>kubectl api-resources</code>). Ничего другого (google, kubernetes discussion forum, SO) - использовать нельзя, это кончается дисквалификацией. Официальное руководство разрешает сделать необходимые закладки заранее &ndash; этим обязательно надо пользоваться.</p>
+<h2 id=подготовка>Подготовка
+<span>
+<a href=#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Сдать CKA без подготовки невозможно. Нет, возможно, конечно, если вас зовут Келси Хайтауэр, Андрей Квапил или Бильям Ибрагим (вот насчет последнего не уверен). Так, как экзамен практический &ndash; нужно тренировать именно практические вопросы и тренировать их на скорость:</p>
+<ul>
+<li>создание-изменение-скейлинг deployment-ов.</li>
+<li>редактура разных компонентов (apply/inline edit/patch). Нужно держать в памяти иммутабельные поля, чтобы не споткнуться на экзамене.</li>
+<li>создание-редактирование сервисов.</li>
+<li>создание-редактирование pod-ов. Последнее может пригодиться для отладки, когда нужно посмотреть на кластер &ldquo;изнутри&rdquo; и проще поднять busybox или netshot.</li>
+<li>создание configmap-ов и secret-ов, они очень часто попадаются.</li>
+</ul>
+<p>Очень рекомендую запомнить и потренировать императивный подходы к вышеперечисленному, чтобы не писать длинный yaml с нуля. Это еще помогает быстро создать &ldquo;скелет&rdquo; конфигурации примерно таким образом: <code>kubectl create deploy nginx --replicas=2 --image=nginx:stable -o yaml --dry-run=client > nginx-deploy.yaml</code></p>
+<p>Я очень рекомендую пройтись по списку всех основных примитивов (по документации или книге) и понять, чем, к примеру, отличается service от ingress а daemonset от statefulset. Так же очень советую сделать лабораторную работу <a href=https://github.com/kelseyhightower/kubernetes-the-hard-way>Kubernetes hard way</a>. Вам абсолютно точно не придется делать этого на экзамене - это слишком долго. Но эта задача позволит понять, из каких компонент K8s состоит, как они взаимодействуют друг с другом и что происходит, когда они ломаются. Для прогона практики можно арендовать сервер в Linode (новоприбывшим дают 100$ кредита на 2 месяца) или в больших облаках (там тоже есть бонус для новичков, главное &ndash; следить за балансом). Машины с 4Gb RAM хватит для большинства лабораторных (исключая те, что про CNI - там нужно две машины в одной сети). Практика - 70% успеха на этом экзамене.</p>
+<p>Если душа лежит к видеокурсам &ndash; обязательно берите те, где есть практические задачи (hands-on labs). Мне в свое время помог <a href=https://www.udemy.com/course/certified-kubernetes-administrator-with-practice-tests>курс</a> от Мумшада Манамбета (но один курс вас не спасет, практика обязательна и тут она важнее теории).</p>
+<p>Условия экзамена разрешают использовать закладки - и их нужно обязательно подготовить. Я готовил закладки сам и поделил их на 3 группы:</p>
+<ul>
+<li>справочники и прочая теория (API, описание certifications API, CNI, CRI).</li>
+<li>практические задачи из официальной документации. В стиле &ldquo;как обновить k8s через kubeadm на специфичную версию&rdquo;, &ldquo;как создать и затем использовать секрет&rdquo;</li>
+<li>готовые референсные конфиги (yaml с готовым рабочим примитивом).</li>
+</ul>
+<p>В сети есть некоторое количество уже готовых подборок закладок, вот <a href=https://gist.github.com/prudnitskiy/e71c819743aaea142b1ae58bd4d862b3>эта</a> подборка от ITNext мне показалась лучшей.</p>
+<p>В рамках подготовки к экзамену, если он уже оплачен &ndash; появляется возможность взять тестовые сессии на [killer.sh]. Бесплатно доступно 3 сессии, каждая такая сессия доступна сутки с момента запроса. По моим ощущениям - эти сессии слегка сложнее реального экзамена, но не радикально. Эти сессии помогут понять, как идет реальный экзамен (там даже интерфейс такой же, только проктора нет).</p>
+<h2 id=чего-я-делать-не-советую>Чего я делать не советую
+<span>
+<a href=#%d1%87%d0%b5%d0%b3%d0%be-%d1%8f-%d0%b4%d0%b5%d0%bb%d0%b0%d1%82%d1%8c-%d0%bd%d0%b5-%d1%81%d0%be%d0%b2%d0%b5%d1%82%d1%83%d1%8e><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Первое и самое главное &ndash; сильно не советую жульничать. Экзамен сдается через Pearson Vue, в наихудшем случае это кончится баном в PV и аннуляцией уже выданных сертификатов (да, их EULA такое позволяет). Экзамен непростой, но если озаботиться подготовкой &ndash; сдать его вполне реально. Многие статьи рекомендуют выучить hotkey-и для tmux и идеально владеть vim. ИМХО, если вы не умеете &ndash; тратить время не стоит. Если vim вам прямо совсем не дается &ndash; на тестовой машине есть nano, нужно просто знать, как переключить редактор (через переменную <code>EDITOR</code>). Tmux вообще не нужен на экзамене. Так же не советую пытаться что-то запмнить наизусть &ndash; официальная документация и подсказки из API всегда доступны. Тратить силы и время на именно запоминание каких-то цифр или команд &ndash; просто расточительство и никак не поможет.</p>
+<p>Не советую назначать экзамен после окончания рабочего дня или в сильно неудобное время &ndash; экзамен требует полной сосредоточенности, отвлечение может стоить вам баллов, и, как следствие, сертификата.</p>
+<h2 id=на-что-обращать-внимание-на-экзамене>На что обращать внимание на экзамене
+<span>
+<a href=#%d0%bd%d0%b0-%d1%87%d1%82%d0%be-%d0%be%d0%b1%d1%80%d0%b0%d1%89%d0%b0%d1%82%d1%8c-%d0%b2%d0%bd%d0%b8%d0%bc%d0%b0%d0%bd%d0%b8%d0%b5-%d0%bd%d0%b0-%d1%8d%d0%ba%d0%b7%d0%b0%d0%bc%d0%b5%d0%bd%d0%b5><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Главное &ndash; на <em>время</em>. Его <em>очень мало</em> и важность времени трудно переоценить. Если вы чувствуете, что застряли в задаче &ndash; поставьте флажок и двигайтесь дальше. Если будет время &ndash; потом вернетесь. Следующее, на что я советую обращать внимание &ndash; на формулировку задачи. В формулировке есть все необходимое, но там может скрываться важная подсказка, которую легко упустить: указание на определенный namespace, label, граничное условие. Авторы тестов такие вопросы очень любят, проколоться элементарно. Результат? Незачет вопроса.</p>
+<p>Если вы ответили на все вопросы, а время еще осталось (хотя бы минут 5-10) &ndash; пройдитесь по вопросам еще раз, прочитайте формулировки и проверьте решение. Одну свою задачу я переделывал, ибо поторопился. Простые задачи в целом довольно прямолинейные и если вы уделили время практике &ndash; проблем быть не должно - развернуть сервис, написать политику безопасности, дать пользователю права, привязать-отвязать диск, организовать двум сервисам общение друг с другом, разобраться, почему сервис не стартует&mldr; Нормальные задачи нормального админа. Сложность у задач, как я уже говорил, разная. Сложная задача видна сразу, уже по формулировкам понятно, что она даст много баллов. Если задачу можно решить несколькими способами &ndash; они все идут в зачет (проверяется результат, а не способ). Но опять же, проверяйте условия задачи!</p>
+<h2 id=заключение>Заключение
+<span>
+<a href=#%d0%b7%d0%b0%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5><svg viewBox="0 0 28 23" height="100%" width="19" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" fill="none" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/></svg>
+</a>
+</span>
+</h2><p>Не смотря на страшный имидж - экзамен совсем не такой сложный, каким хочет казаться. Низкий процент успеха продиктован, думаю, физическим отсутствием дампов (теоретических вопросов-то нет!). При наличии времени на подготовку и некоторых теоретических знаний о том, как работает Linux сдать его будет не смертельно сложно. Главное - следить за временем, быть внимательным и потратить время на подготовку. Экзамен покрывает разные топики и человек, который его сдал - скорее всего знает k8s на приличном уровне. Даже сама подготовка - хорошая ревизия знаний и умений в этой области.</p>
+<p>Удачи на экзамене!</p>
+</div>
+<div class=post-info>
+<div class="post-date dt-published">2022-02-16</div>
+<a class="post-hidden-url u-url" href=https://prudnitskiy.pro/post/2022-02-16-CKA/>https://prudnitskiy.pro/post/2022-02-16-CKA/</a>
+<a href=https://prudnitskiy.pro class="p-name p-author post-hidden-author h-card" rel=me>Paul Rudnitskiy</a>
+<div class=post-taxonomies>
+<ul class=post-tags>
+<li><a href=https://prudnitskiy.pro/tags/k8s/>#k8s</a></li>
+</ul>
+</div>
+</div>
+</article>
+<div class="pagination post-pagination">
+<div class="left pagination-item">
+<a href=/post/2023-01-24-books/>Книги для инфраструктурного инженера, часть 1 - hard skills</a>
+</div>
+<div class="right pagination-item">
+<a href=/post/2021-01-15-k8s-pod-distribution/>Распределяем pod-ы по машинам в kubernetes</a>
+</div>
+</div>
+</main>
+<footer class=common-footer>
+<div class=common-footer-bottom>
+<div class=copyright>
+<p>© Paul Rudnitskiy, 2023<br>
+Powered by <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, theme <a target=_blank rel="noopener noreferrer" href=https://github.com/mitrichius/hugo-theme-anubis>Anubis</a>.<br>
+</p>
+</div>
+<button class=theme-switcher>
+Dark theme
+</button>
+<script>const STORAGE_KEY='user-color-scheme',defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia('(prefers-color-scheme: dark)');const autoChangeScheme=a=>{currentTheme=a.matches?'dark':'light',document.documentElement.setAttribute('data-theme',currentTheme),changeButtonText()};document.addEventListener('DOMContentLoaded',function(){switchButton=document.querySelector('.theme-switcher'),currentTheme=detectCurrentScheme(),currentTheme=='dark'&&document.documentElement.setAttribute('data-theme','dark'),currentTheme=='auto'&&(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)),changeButtonText(),switchButton.addEventListener('click',switchTheme,!1)});function detectCurrentScheme(){return localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light':'light'}function changeButtonText(){switchButton.textContent=currentTheme=='dark'?"Light theme":"Dark theme"}function switchTheme(a){currentTheme=='dark'?(localStorage.setItem(STORAGE_KEY,'light'),document.documentElement.setAttribute('data-theme','light'),currentTheme='light'):(localStorage.setItem(STORAGE_KEY,'dark'),document.documentElement.setAttribute('data-theme','dark'),currentTheme='dark'),changeButtonText()}</script>
+</div>
+<p class="h-card vcard">
+<a href=https://prudnitskiy.pro class="p-name u-url url fn" rel=me>Paul Rudnitskiy</a>
+<img class=u-photo src=/assets/avatars/ba.jpg>
+</p>
+</footer>
+</div>
+</body>
+</html>
