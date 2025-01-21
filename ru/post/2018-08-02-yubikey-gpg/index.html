@@ -1,0 +1,512 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>Yubikey + GPG – быстрый старт - Инфраструктурный блог</title>
+<meta name=description content="Как настроить Yubikey 4 для работы с GPG."><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">Yubikey + GPG – быстрый старт</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2018-08-02>2018-08-02</time></div><a class="post-hidden-url u-url" href=/ru/post/2018-08-02-yubikey-gpg/>/ru/post/2018-08-02-yubikey-gpg/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href=/ru/tags/linux/>#Linux</a></li><li><a href=/ru/tags/security/>#Security</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#предварительные-настройки>Предварительные настройки</a></li><li><a href=#генерация-ключа-на-yubikey>Генерация ключа на Yubikey</a></li><li><a href=#перенос-существующего-ключа-на-yubikey>Перенос существующего ключа на Yubikey</a></li><li><a href=#выводы>Выводы</a></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>Требования к безопасности непрерывно растут, так как взломщики постоянно эволюционируют и все лучше умеют красть данные. Доступ к данным становится все более ценным - это могут быть живые деньги, секретная информация или доступ в инфраструктуру, интеллектуальную собственность или пользовательские данные (которые эта инфраструктура обрабатывает). А это – очень большие деньги. А иногда и вовсе вопрос жизни и смерти целой структуры.</p><p>Простой системы логин/пароль уже недостаточно, чтобы обеспечить надежную защиту, и даже система с ассиметричными ключами имеет уязвимости:</p><ul><li>ключ можно выкрасть. Он будет шифрован, но пароль можно подобрать. Это медленный процесс, но взломщику может повезти, особенно, если у него есть какая-то информация об особенностях пароля. Например, он знает его точную длинну.</li><li>Для того, чтобы ключ можно было использовать - он должен быть расшифрован. Обычно расшифрованый ключ хранится в оперативной памяти, но при наличии доступа к памяти его можно украсть. Атака сложная, но если ключ по-настоящиему ценный - реальная.</li></ul><p>Для того, чтобы сделать работу с шифрованием надежной и безопасной – были придуманы аппаратные носители ключей. Концепция выглядит просто – шифровальный ключ не покидает аппаратного токена (обычно это смарт-карта с чипом), и если операционной системе требуется произвести какое-то действие с шифрованием (зашифровка, расшифровка, подпись) – данные передаются в аппаратный ключ. Ключ выполняет действия (если проситель имеет право на такие действия) и выдает результат.</p><p>В этой статье я расскажу, как настроить Yubikey 4 для работы с GPG и использовать его для стандартных действий (шифрование, расшифровка, авторизация по SSH).</p><p>Yubikey - это именно такой ключ. Это простой, удобный и понятный для начинающего ключ-смарткарта в форм-факторе USB-флешки. Классический Yubikey 4 выпускается в двух форм-факторах – обычная &ldquo;полноразмерная&rdquo; флешка или &ldquo;нано-ключ&rdquo; - вставленный в комп наноключ практически не выступает из порта, что удобно, если ключ подключен постоянно и не должен изыматься. Yubikey 4 выпускается как под USB2 Type A, так и под USB3 Type C порт, что удобно для обладателей новых ноутбуков (macbook pro touch bar). Так же компания Yubiko выпускает Yubkey Neo - Yubkey с поддержкой NFC (для смартфонов), но со сниженным максимальным размером ключа (2048 бит вместо 4096 для Yubikey 4).</p><p>Кроме GPG, Yubikey может работать как стандартная smart-карта и генерировать одноразовые пароли (TOTP/HOTP). В этой статье будет описана только настройка под GPG.</p><h2 id=предварительные-настройки><div><a href=#%d0%bf%d1%80%d0%b5%d0%b4%d0%b2%d0%b0%d1%80%d0%b8%d1%82%d0%b5%d0%bb%d1%8c%d0%bd%d1%8b%d0%b5-%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b8>#
+</a>Предварительные настройки</div></h2><p>Для того, чтобы использовать gpg для Yubikey - потребуется сам gpg. Пользователи MacOS могут использовать <a href=https://gpgtools.org/>MacGPG</a>. Пользователям Linux ничего делать не надо - gpg входит в поставку ОС. Чтобы gpg создал нужные ему папки - запускаем gpgtool. Он предложит создать новый приватный ключ - игнорируем, просто закрываем программу.</p><p>После установки пакета надо добавить в <code>~/.bashrc</code> следующие строки:</p><pre><code>export GPG_TTY=&quot;$(tty)&quot;
+export SSH_AUTH_SOCK=$(/usr/local/MacGPG2/bin/gpgconf --list-dirs agent-ssh-socket)
+if ! pgrep gpg-agent &amp;&gt; /dev/null; then
+    echo &quot;gpg-agent not running&quot;
+    /usr/local/MacGPG2/bin/gpg-agent --homedir /Users/YOUR_LOGIN/.gnupg --daemon
+fi
+</code></pre><p>Обратите внимание, что вам нужно поменять логин на свой</p><p>Также надо указать pinentry и включить поддежку ssh-agent в файле <code>~/.gnupg/gpg-agent.conf</code>:</p><pre><code>default-cache-ttl 600
+max-cache-ttl 7200
+pinentry-program /usr/local/MacGPG2/libexec/pinentry-mac.app/Contents/MacOS/pinentry-mac
+enable-ssh-support
+</code></pre><p>Теперь можно подключить yubikey. Проверим, что карта подключилась и определилась:</p><pre><code>tungsten&gt; gpg --card-edit
+
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+Signature key ....: [none]
+Encryption key....: [none]
+Authentication key: [none]
+General key info..: [none]
+
+gpg/card&gt;
+</code></pre><p>Отлично, карта есть, можно настраивать. Первое, что нужно поменять - pin-коды карты. У карты два pin-кода:</p><ul><li>User PIN - отвечает за проверку авторизации самой карты. Его нужно ввести, чтобы использовать ключ (зашифровать, расшифровать данные или авторизоваться)</li><li>Admin PIN - отвечает за настройку карты. Он позволяет управлять содержимым карты или ее настройками.</li></ul><p>Не смотря на названия, PIN-коды - это полноценные пароли длинной до 127 символов включительно. Пароли имеют ограничения - там нельзя использовать символы национальных алфавитов и спецсимволы. То есть – можно только английские буквы и цифры. Кроме того, Admin PIN должен быть не менее 8 символов длинной. Yubikey никак не предупредит об этом, но pin короче 8 символов просто не запишется. При смене PIN-кода спросят старый PIN. PIN-коды по умолчанию:</p><ul><li>User PIN: 123456</li><li>Admin PIN: 12345678</li></ul><p>Переключимся в админ-режим и поменяем пины:</p><pre><code>gpg/card&gt; admin
+Admin commands are allowed
+
+gpg/card&gt; passwd
+gpg: OpenPGP card no. D2760001240102010006070171690000 detected
+
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+
+Your selection? 1
+PIN changed.
+
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+
+Your selection? 3
+PIN changed.
+
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+
+Your selection? q
+</code></pre><p>Небольшая ремарка про PIN-ы. Карта считает все неуспешные попытки использования PIN-кода. Если ввести PIN-код неправильно несколько раз подряд – он блокируется. User PIN можно разблокировать с помощью Admin PIN. Заблокированный Admin PIN разблокировать нельзя никак. Карту можно полностью сбросить командой <code>factory-reset</code> - при этом все ее содержимое будет безвозвратно уничтожено. Для <code>factory-reset</code> никакие пин-коды не нужны. Счетчик неуспешных попыток сбрасывается, если ввести PIN правильно.</p><p>Теперь рекомендуется персонализировать карту - внести в нее информацию о себе. Это мало на что влияет, но имя будет отображаться в диалоге ввода PIN (что облегчает идентификацию карты). Кроме того, общую информацию о карте можно прочитать без кода – это может помочь, если вы потеряете карту. Важный параметр - url, это адрес, с которого можно будет скачать ваш <strong>публичный</strong> ключ:</p><pre><code>gpg/card&gt; name
+Cardholder's surname: Rudnitskiy
+Cardholder's given name: Paul
+
+gpg/card&gt; sex
+Sex ((M)ale, (F)emale or space): M
+
+gpg/card&gt; lang
+Language preferences: en
+
+gpg/card&gt; login
+Login data (account name): logan
+
+gpg/card&gt; url
+URL to retrieve public key: https://prudnitskiy.pro/gpg.pub
+</code></pre><p>Карта готова и теперь можно экспортировать ключ на нее или создать ключ прямо на ней. Если у вас нет ключа - я рекомендую прямо на карте его и создавать. Если ключ уже есть – ниже есть раздел о том, как перенести ключ на карту</p><h2 id=генерация-ключа-на-yubikey><div><a href=#%d0%b3%d0%b5%d0%bd%d0%b5%d1%80%d0%b0%d1%86%d0%b8%d1%8f-%d0%ba%d0%bb%d1%8e%d1%87%d0%b0-%d0%bd%d0%b0-yubikey>#
+</a>Генерация ключа на Yubikey</div></h2><p>Перед тем, как создавать ключ - я рекомендую поменять его размер. По умолчанию Yubikey создает один мастер-ключ и два сабключа:</p><ul><li>Master + Certify</li><li>SUB1 - Encryption</li><li>SUB2 – Authentication</li></ul><p>Все три ключа по умолчанию - RSA2048. RSA4096 выглядит намного интереснее. Поменяем:</p><pre><code>gpg/card&gt; key-attr
+Changing card key attribute for: Signature key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+Changing card key attribute for: Encryption key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+Changing card key attribute for: Authentication key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+gpg: error changing key attribute for key 3: Bad PIN
+Changing card key attribute for: Authentication key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+</code></pre><p>Внимание! Если у вас Yubikey Neo - вы <strong>не можете использовать 4096-битные ключи.</strong></p><p>Теперь (наконец-то!) приступим к созданию ключей. Вопрос политики устаревания ключей в целом довольно дискуссионный, и тут я не могу ничего порекомендовать. В данном примере я создам мастер-ключ с бесконечным сроком жизни, а саб-ключи мы потом отредактируем и они будут жить по 5 лет. В процессе создания ключа GPG спросит пароль для шифрования off-card резервной копии. Она вам потребуется, если вы потеряете физический ключ. Off-card экспортируется только subkey для шифрования (capability - E). Остальные sub-ключи и мастер-ключ останутся на карте и вынуть оттуда их нельзя. Процесс генерации ключа зависит от выбранного размера ключа (4096 бит будет генерироваться дольше, чем 2048):</p><pre><code>gpg/card&gt; generate
+Make off-card backup of encryption key? (Y/n) y
+Please specify how long the key should be valid.
+        0 = key does not expire
+    &lt;n&gt;  = key expires in n days
+    &lt;n&gt;w = key expires in n weeks
+    &lt;n&gt;m = key expires in n months
+    &lt;n&gt;y = key expires in n years
+Key is valid for? (0) 0
+Key does not expire at all
+Is this correct? (y/N) y
+
+GnuPG needs to construct a user ID to identify your key.
+
+Real name: Paul Rudnitskiy
+Email address: me@prudnitskiy.pro
+Comment: YBKey
+You selected this USER-ID:
+    &quot;Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;&quot;
+
+Change (N)ame, (C)omment, (E)mail or (O)kay/(Q)uit? O
+[...]
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+gpg: Note: backup of card key saved to '/Users/logan/.gnupg/sk_8E0418955A55C1A8.gpg'
+gpg: key 9ECF9961A551A45B marked as ultimately trusted
+gpg: revocation certificate stored as '/Users/logan/.gnupg/openpgp-revocs.d/707C3210B50A430B555DD6AC9ECF9961A551A45B.rev'
+public and secret key created and signed.
+</code></pre><p>Ключ готов. Резервную копию забираем из <code>/Users/logan/.gnupg/sk_8E0418955A55C1A8.gpg</code> (у вас место будет другим) и прячем в надежное место. Пароль резервной копии тоже прячем в надежное место, но <em>другое</em>. Обязательно удалите резервную копию с той машины, где вы работаете с ключом.</p><p>Проверим, что ключ сгенерировался:</p><pre><code>gpg/card&gt; list
+
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: Paul Rudnitskiy
+Language prefs ...: en
+Sex ..............: male
+URL of public key : [not set]
+Login data .......: logan
+Signature PIN ....: not forced
+Key attributes ...: rsa4096 rsa4096 rsa4096
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 4
+Signature key ....: 707C 3210 B50A 430B 555D  D6AC 9ECF 9961 A551 A45B
+    created ....: 2018-08-07 07:58:18
+Encryption key....: 062A ABF7 6FB0 8EF4 0E97  4B47 8E04 1895 5A55 C1A8
+    created ....: 2018-08-07 07:58:18
+Authentication key: 6A41 D75C 2B56 41FC A7F4  8DBE CC02 AF33 8EE7 E338
+    created ....: 2018-08-07 07:58:18
+General key info..: pub  rsa4096/9ECF9961A551A45B 2018-08-07 Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+sec&gt;  rsa4096/9ECF9961A551A45B  created: 2018-08-07  expires: never
+                                card-no: 0006 07017169
+ssb&gt;  rsa4096/CC02AF338EE7E338  created: 2018-08-07  expires: never
+                                card-no: 0006 07017169
+ssb&gt;  rsa4096/8E0418955A55C1A8  created: 2018-08-07  expires: never
+                                card-no: 0006 07017169
+</code></pre><p>Все в порядке, уходим:</p><pre><code>gpg/card&gt; quit
+</code></pre><p>Теперь зададим срок жизни сабключей. Он нужен для того, чтобы если по какой-то причине вы потеряли доступ к копии ключа – им нельзя было пользовать после истечения срока жизни ключа. Для этого надо выйти из режима редактирования карты и отредактировать ключ. Редактивровать мы будем SEC-ключ, в этом примере это <em>9ECF9961A551A45B</em>:</p><pre><code>tungsten&gt; gpg --edit-key 9ECF9961A551A45B
+gpg (GnuPG/MacGPG2) 2.2.8; Copyright (C) 2018 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Secret key is available.
+
+gpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   5  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 5u
+gpg: next trustdb check due at 2024-05-30
+sec  rsa4096/9ECF9961A551A45B
+    created: 2018-08-07  expires: never       usage: SC
+    card-no: 0006 07017169
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/CC02AF338EE7E338
+    created: 2018-08-07  expires: never       usage: A
+    card-no: 0006 07017169
+ssb  rsa4096/8E0418955A55C1A8
+    created: 2018-08-07  expires: never       usage: E
+    card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>Команда <code>key NUM</code> выберет ключ для редактирования. Чтобы снять выбор - нужно ввести ее повторно:</p><pre><code>gpg&gt; key 1
+
+sec  rsa4096/9ECF9961A551A45B
+    created: 2018-08-07  expires: never       usage: SC
+    card-no: 0006 07017169
+    trust: ultimate      validity: ultimate
+ssb* rsa4096/CC02AF338EE7E338
+    created: 2018-08-07  expires: never       usage: A
+    card-no: 0006 07017169
+ssb  rsa4096/8E0418955A55C1A8
+    created: 2018-08-07  expires: never       usage: E
+    card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>Меняем срок жизни:</p><pre><code>gpg&gt; expire
+Changing expiration time for a subkey.
+Please specify how long the key should be valid.
+        0 = key does not expire
+    &lt;n&gt;  = key expires in n days
+    &lt;n&gt;w = key expires in n weeks
+    &lt;n&gt;m = key expires in n months
+    &lt;n&gt;y = key expires in n years
+Key is valid for? (0) 5y
+Key expires at Sun Aug  6 11:01:18 2023 MSK
+Is this correct? (y/N) y
+
+sec  rsa4096/9ECF9961A551A45B
+    created: 2018-08-07  expires: never       usage: SC
+    card-no: 0006 07017169
+    trust: ultimate      validity: ultimate
+ssb* rsa4096/CC02AF338EE7E338
+    created: 2018-08-07  expires: 2023-08-06  usage: A
+    card-no: 0006 07017169
+ssb  rsa4096/8E0418955A55C1A8
+    created: 2018-08-07  expires: never       usage: E
+    card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>Снимаем выделение первого ключа и меняем второй по аналогии:</p><pre><code>gpg&gt; key 1
+
+sec  rsa4096/9ECF9961A551A45B
+    created: 2018-08-07  expires: never       usage: SC
+    card-no: 0006 07017169
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/CC02AF338EE7E338
+    created: 2018-08-07  expires: 2023-08-06  usage: A
+    card-no: 0006 07017169
+ssb  rsa4096/8E0418955A55C1A8
+    created: 2018-08-07  expires: never       usage: E
+    card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; key 2
+
+sec  rsa4096/9ECF9961A551A45B
+    created: 2018-08-07  expires: never       usage: SC
+    card-no: 0006 07017169
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/CC02AF338EE7E338
+    created: 2018-08-07  expires: 2023-08-06  usage: A
+    card-no: 0006 07017169
+ssb* rsa4096/8E0418955A55C1A8
+    created: 2018-08-07  expires: never       usage: E
+    card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; expire
+Changing expiration time for a subkey.
+Please specify how long the key should be valid.
+        0 = key does not expire
+    &lt;n&gt;  = key expires in n days
+    &lt;n&gt;w = key expires in n weeks
+    &lt;n&gt;m = key expires in n months
+    &lt;n&gt;y = key expires in n years
+Key is valid for? (0) 5y
+Key expires at Sun Aug  6 11:01:29 2023 MSK
+Is this correct? (y/N) y
+
+sec  rsa4096/9ECF9961A551A45B
+    created: 2018-08-07  expires: never       usage: SC
+    card-no: 0006 07017169
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/CC02AF338EE7E338
+    created: 2018-08-07  expires: 2023-08-06  usage: A
+    card-no: 0006 07017169
+ssb* rsa4096/8E0418955A55C1A8
+    created: 2018-08-07  expires: 2023-08-06  usage: E
+    card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; save
+</code></pre><p>Ключ на карте готов к использованию</p><h2 id=перенос-существующего-ключа-на-yubikey><div><a href=#%d0%bf%d0%b5%d1%80%d0%b5%d0%bd%d0%be%d1%81-%d1%81%d1%83%d1%89%d0%b5%d1%81%d1%82%d0%b2%d1%83%d1%8e%d1%89%d0%b5%d0%b3%d0%be-%d0%ba%d0%bb%d1%8e%d1%87%d0%b0-%d0%bd%d0%b0-yubikey>#
+</a>Перенос существующего ключа на Yubikey</div></h2><p>Этот раздел вам нужен, если у вас уже есть gpg-ключ и вы хотите его перенести на карту. <em>Вы не сможете экспортировать приватный ключ с карты yubikey.</em></p><p>После того, как карта сконфигурирована, открываем режим редактирования ключа:</p><pre><code>tungsten&gt; gpg --expert --edit-key 21F7B93A71CDF86D649D8D0661BEBC7784A83F16
+gpg (GnuPG/MacGPG2) 2.2.8; Copyright (C) 2018 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Secret key is available.
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>Ключи переносятся командой <code>keytocard</code>. На Yubikey есть только три слота под три типа (capability) ключа:</p><ul><li>Encryption key</li><li>Authentication key</li><li>Sign key</li></ul><p>Если у вас больше ключей - то вы должны решить, какие ключи вы будете переносить. В примере выше - 2 sign ключа, по этому мастер мы переносить не будем - на yubikey уедут только три сабключа. Перед началом переноса ключей рекомендую сделать backup и положить его в безопасное место.</p><p>Выберем ключ для переноса:</p><pre><code>gpg&gt; key 1
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb* rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>Перенесем его:</p><pre><code>gpg&gt; keytocard
+Please select where to store the key:
+(2) Encryption key
+Your selection? 2
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb* rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>После переноса снимем выделение с него:</p><pre><code>gpg&gt; key 1
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>По аналогии перенесем 2 и 3 ключи:</p><pre><code>gpg&gt; key 2
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb* rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; keytocard
+Please select where to store the key:
+(3) Authentication key
+Your selection? 3
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb* rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; key 2
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; key 3
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb* rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+
+gpg&gt; keytocard
+Please select where to store the key:
+(1) Signature key
+(3) Authentication key
+Your selection? 1
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb* rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[ultimate] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+</code></pre><p>Все перенесено, сохраним и проверим:</p><pre><code>gpg&gt; save
+
+tungsten&gt; gpg --card-edit
+
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+Signature key ....: 21F7 B93A 71CD F86D 649D  8D06 61BE BC77 84A8 3F16
+    created ....: 2018-08-08 14:51:38
+Encryption key....: 7A30 6771 BB74 204F 54D5  8A61 1200 D2BB 8DFB 614C
+    created ....: 2018-08-08 14:51:38
+Authentication key: DDB0 62D0 1BB4 4D01 3819  E450 0BC3 AD72 9F05 D736
+    created ....: 2018-08-08 14:54:07
+General key info..: pub  rsa2048/61BEBC7784A83F16 2018-08-08 Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+sec#  rsa2048/61BEBC7784A83F16  created: 2018-08-08  expires: 2022-08-08
+ssb&gt;  rsa2048/1200D2BB8DFB614C  created: 2018-08-08  expires: 2022-08-08
+                                card-no: 0006 07017169
+ssb&gt;  rsa2048/0BC3AD729F05D736  created: 2018-08-08  expires: 2022-08-07
+                                card-no: 0006 07017169
+ssb&gt;  rsa2048/FAF7641B57B14FF2  created: 2018-08-08  expires: 2022-08-07
+                                card-no: 0006 07017169
+</code></pre><p>Обратите внимание, что мастер-ключ не лежит на карте – он пока еще хранится на компьютере (и внутри бэкапа). Имея доступ к мастер-ключу - можно редактировать срок жизни sub-ключа или отозвать (revoke) его. Очень важно хранить мастер в безопасности. Для этого мы вынесем его в холодное хранилище:</p><ul><li>у вас должна быть резервная копия мастер-ключа</li><li>экспортируем публичный ключ</li><li>удалим все <em>секретные</em> ключи с компьютера</li><li>импортируем обратно публичный ключ, сделав его доверенным</li></ul><p>Экспортируем публичный ключ:</p><pre><code>gpg --export --armour 61BEBC7784A83F16 &gt; pub.asc
+</code></pre><p>Уберем из компьютера yubikey и удалим приватный ключ:</p><pre><code>gpg --edit-key 61BEBC7784A83F16
+gpg&gt; delkey
+</code></pre><p>импортируем публичный ключ обратно:</p><pre><code>gpg --import &lt; pub.asc
+</code></pre><p>повысим ему уровень доверия</p><pre><code>gpg --edit-key 61BEBC7784A83F16
+gpg&gt; trust
+
+sec  rsa2048/61BEBC7784A83F16
+    created: 2018-08-08  expires: 2022-08-08  usage: SC
+    trust: ultimate      validity: ultimate
+ssb  rsa2048/1200D2BB8DFB614C
+    created: 2018-08-08  expires: 2022-08-08  usage: E
+ssb  rsa2048/0BC3AD729F05D736
+    created: 2018-08-08  expires: 2022-08-07  usage: A
+ssb  rsa2048/FAF7641B57B14FF2
+    created: 2018-08-08  expires: 2022-08-07  usage: S
+[none] (1). Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+
+Please decide how far you trust this user to correctly verify other users' keys
+(by looking at passports, checking fingerprints from different sources, etc.)
+
+1 = I don't know or won't say
+2 = I do NOT trust
+3 = I trust marginally
+4 = I trust fully
+5 = I trust ultimately
+m = back to the main menu
+
+Your decision? 5
+Do you really want to set this key to ultimate trust? (y/N) y
+</code></pre><p>Теперь проверим, что ключи на карте видны:</p><pre><code>tungsten&gt; gpg --card-edit
+
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+Signature key ....: 21F7 B93A 71CD F86D 649D  8D06 61BE BC77 84A8 3F16
+    created ....: 2018-08-08 14:51:38
+Encryption key....: 7A30 6771 BB74 204F 54D5  8A61 1200 D2BB 8DFB 614C
+    created ....: 2018-08-08 14:51:38
+Authentication key: DDB0 62D0 1BB4 4D01 3819  E450 0BC3 AD72 9F05 D736
+    created ....: 2018-08-08 14:54:07
+General key info..: pub  rsa2048/61BEBC7784A83F16 2018-08-08 Paul Rudnitskiy &lt;me@prudnitskiy.pro&gt;
+sec#  rsa2048/61BEBC7784A83F16  created: 2018-08-08  expires: 2022-08-08
+ssb&gt;  rsa2048/1200D2BB8DFB614C  created: 2018-08-08  expires: 2022-08-08
+                                card-no: 0006 07017169
+ssb&gt;  rsa2048/0BC3AD729F05D736  created: 2018-08-08  expires: 2022-08-07
+                                card-no: 0006 07017169
+ssb&gt;  rsa2048/FAF7641B57B14FF2  created: 2018-08-08  expires: 2022-08-07
+                                card-no: 0006 07017169
+</code></pre><p>Отлично, ключи видны, можно пользоваться.</p><h2 id=выводы><div><a href=#%d0%b2%d1%8b%d0%b2%d0%be%d0%b4%d1%8b>#
+</a>Выводы</div></h2><p>Использование gpg-ключа с карты практически ничем не отличается от использования ключа без карты. Для авторизации по ssh с использованием ключа вам потребуется RSA pubkey. Он создается от gpg subkey A (Auth capability). Если вы меняете auth-ключ – ssh-ключ поменяется тоже, имейте ввиду. Чтобы его получить - достаточно набрать команду <code>ssh-add -L</code></p><pre><code>ssh-add -L
+ssh-rsa AAAAB***************************** cardno:00007017169
+</code></pre><p>Комментарий cardno подскажет, что ключ был импортирован из yubikey</p><p>На каждую попытку использовать ключ yubikey будет требовать ввод User PIN. Yubikey весьма безопасен и надежен, если не делать глупых ошибок в его использовании и применении. И разумеется - нельзя забывать о бэкапах.</p></div></article><h3 class="read-next-title noselect">Читать далее</h3><ul class="read-next-posts noselect"><li><a href=/ru/post/2018-01-24-systemd-quickstart/>Systemd – очень быстрый старт</a></li><li><a href=/ru/post/2015-11-26-pinba/>Отслеживаем PHP с помощью PINBA на debian</a></li><li><a href=/ru/post/2014-12-25-debian-to-mdraid/>Мигрируем Debian на softraid без потери данных</a></li></ul><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2018-08-22-repmgr/>Repmgr: управление репликацией postgresql</a></div><div class="right pagination-item"><a href=/ru/post/2018-01-24-systemd-quickstart/>Systemd – очень быстрый старт</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>

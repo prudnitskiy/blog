@@ -1,0 +1,141 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>Запуск ruby on rails на uwsgi на примере redmine - Инфраструктурный блог</title>
+<meta name=description content="Для лично-рабочих нужд я активно использую task-tracking system под названием Redmine. Redmine практически всем хорош из открытых трекеров, но очень любит память. Традиционно он запускается через rails server (WEBRick) или rails-specific сервер thin. Во второй конфигурации у меня он жрал 300Мб оперативной памяти, а среднее время генерации страницы было близко к секунде, что совершенно неприемлимо. По этой причине я решил использовать uwsgi - совершенно прекрасный appserver, который я активно использую для своего творчества на python. Uwsgi работает очень быстро (действительно - очень!), достаточно экономно относится к памяти, обладает широчайшими возможностями конфигурирования - просто-таки мечта, а не сервер. До недавнего времени он умел работать только с python (под который интерфейс uWSGI, строго говоря, и создавался), но теперь умеет обрабатывать ruby и даже PHP. Минусом uwsgid является, во-первых, тот факт, что он находится на переднем крае разработок, а значит - может работать ой как своеобразно. Не менее своеобразно он настраивается, и документации по нему очень мало."><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">Запуск ruby on rails на uwsgi на примере redmine</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2013-06-20>2013-06-20</time></div><a class="post-hidden-url u-url" href=/ru/post/2013-06-20-rails-on-uwsgi/>/ru/post/2013-06-20-rails-on-uwsgi/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href=/ru/tags/linux/>#Linux</a></li><li><a href=/ru/tags/ruby/>#Ruby</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#идея>Идея</a></li><li><a href=#зависимости>Зависимости</a></li><li><a href=#установка-redmine>Установка Redmine</a></li><li><a href=#установка-и-подключение-uwsgid>Установка и подключение uwsgid</a></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>Для лично-рабочих нужд я активно использую task-tracking system под названием Redmine. Redmine практически всем хорош из открытых трекеров, но очень любит память. Традиционно он запускается через rails server (WEBRick) или rails-specific сервер thin. Во второй конфигурации у меня он жрал 300Мб оперативной памяти, а среднее время генерации страницы было близко к секунде, что совершенно неприемлимо. По этой причине я решил использовать uwsgi - совершенно прекрасный appserver, который я активно использую для своего творчества на python. Uwsgi работает очень быстро (действительно - очень!), достаточно экономно относится к памяти, обладает широчайшими возможностями конфигурирования - просто-таки мечта, а не сервер. До недавнего времени он умел работать только с python (под который интерфейс uWSGI, строго говоря, и создавался), но теперь умеет обрабатывать ruby и даже PHP. Минусом uwsgid является, во-первых, тот факт, что он находится на переднем крае разработок, а значит - может работать ой как своеобразно. Не менее своеобразно он настраивается, и документации по нему очень мало.</p><h2 id=идея><div><a href=#%d0%b8%d0%b4%d0%b5%d1%8f>#
+</a>Идея</div></h2><p>Запускать будем redmine, но это типовое rails приложение, все остальные запускаются так же. В качестве веб-сервера - nginx, апп-сервер - uwsgid, база данных - postgresql (но будет уточнение для mysql), для управления uwsgid будем использовать supervisord</p><h2 id=зависимости><div><a href=#%d0%b7%d0%b0%d0%b2%d0%b8%d1%81%d0%b8%d0%bc%d0%be%d1%81%d1%82%d0%b8>#
+</a>Зависимости</div></h2><p>Ставим системные компоненты:</p><pre><code>apt-get update
+apt-get install gcc cpp make nginx
+#postgresql
+apt-get install postgresql libpq-dev
+#или mysql
+apt-get install mysql libmysqlclient-dev
+</code></pre><p>Лирическое отступление: я рекомендую использовать rvm вместо штатного руби. RVM живет вне пакетов, и обновлять его надо вручную, однако он позволяет получить самую свежую версию ruby, кроме того - он позволяет использовать несколько разных версий языка, а так же - несколько разных наборов библиотек (gem), не пересекая их друг с другом. Если у вас несколько приложений на ruby делят один сервер - это крайне удобный функционал.</p><p>Ставим ruby:</p><pre><code>#системная версия
+apt-get install ruby1.8 ruby1.8-dev rubygems
+#ИЛИ rvm
+curl -L https://get.rvm.io | bash -s stable
+rvm install 1.9.3-p429
+</code></pre><p>Теперь доустанавливаем gem bundle. Он отвечает за установку необходимых для работы веб-приложения библиотек</p><pre><code>gem install bundle
+</code></pre><h2 id=установка-redmine><div><a href=#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-redmine>#
+</a>Установка Redmine</div></h2><p>Создадим базу данных и пользователя для работы с ней:</p><pre><code>#вариант для postgresql
+sudo -u postgres psql
+psql# create user redmineuser nocreatedb nocreateuser;
+psql# alter role redmineuser with password 'MySecretP@ssw0rd';
+psql# create database redminedb owner redmineuser;
+
+#вариант для mysql
+mysql -p
+mysql&gt; create database redminedb;
+mysql&gt; grant all on redminedb.* to redmineuser@localhost identified by 'MySecretP@ssw0rd';
+mysql&gt; flush privileges;
+</code></pre><p>Теперь скачиваем и ставим сам redmine. Последнюю версию берем [http://rubyforge.org/frs/?group_id=1850] тут.</p><pre><code>wget http://rubyforge.org/frs/download.php/76933/redmine-2.3.1.tar.gz
+tar -xf redmine-2.3.1.tar.gz
+mv redmine-2.3.1 redmine
+</code></pre><p>Для корректной работы надо исправить файл config/database.yml в корне приложения. Вот пример для postgresql:</p><pre><code>production:
+    adapter: postgresql
+    database: redminedb
+    host: localhost
+    username: redmineuser
+    password: MySecretP@ssw0rd
+    encoding: utf8
+    schema_search_path: public
+</code></pre><p>А вот пример для mysql:</p><pre><code>production:
+    adapter: mysql
+    database: redminedb
+    host: localhost
+    username: redmineuser
+    password: MySecretP@ssw0rd
+    encoding: utf8
+</code></pre><p>Теперь самое сложное - установка GEM-ов. Gem - это библиотека в терминологии ruby. Их количество без преувеличения огромно, и делают они буквально все - appservers, драйвера к библиотекам, рисование графиков&mldr; Любое нормальное руби-приложение использует множество гемов для работы. Для упрощения установки используется (сюрприз!) gem под названием bundle.
+Заходим в папку redmine и выполняем:</p><pre><code>#вариант для postgresql
+bundle install --without development test sqlite mysql rmagick
+
+#ИЛИ для mysql
+bundle install --without development test sqlite pg rmagick
+</code></pre><p>Запуск приложения (любого!) от root не рекомендуется, так как взлом этого приложения скомпрометирует систему полностью.
+Сделаем непривелигированного юзера:</p><pre><code>useradd --system -m -d /var/www/redmine -s /bin/bash redmine
+</code></pre><p>Послеустановочные действия:</p><pre><code>rake generate_secret_token
+RAILS_ENV=production rake db:migrate
+RAILS_ENV=production rake redmine:load_default_data
+mkdir -p tmp tmp/pdf public/plugin_assets
+chown -R redmine:redmine files log tmp public/plugin_assets
+chmod -R 755 files log tmp public/plugin_assets
+</code></pre><h2 id=установка-и-подключение-uwsgid><div><a href=#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bf%d0%be%d0%b4%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5-uwsgid>#
+</a>Установка и подключение uwsgid</div></h2><p>Ставим uwsgid. Его придется ставить из gem, потому, что тот, что идет в комплекте с системой, слишком старый - и не умеет работать с rails</p><pre><code>gem install uwsgi
+</code></pre><p>Конфигурация uwsgi расскажет ему о том, как запустить rails. Пишем в файл uwsgi.ini</p><pre><code>[uwsgi]
+socket = /tmp/redmine.sock
+chmod-socket = 770
+master = true
+lazy = true
+processes = 2 #по количеству ядер в системе. У меня atom 525, два ядра
+post-buffering = 4096
+#следующие три строки - только для тех, кто использует RVM
+rvm-path = /usr/local/rvm
+#имя ruby, указывать обязательно, даже, если он указан по умолчанию
+rvm = ruby-1.9.3-p429
+#название gemset в формате язык@гемсет
+gemset = ruby-1.9.3-p429@redmine
+uid = redmine
+gid = www-data
+env = RAILS_ENV=production
+chdir = /var/www/redmine
+rack = /var/www/redmine/config.ru
+http-modifier1 = 7
+</code></pre><p>Сам по себе supervisor умеет порождать процессы-обработчики (это так называемый режим императора), но это совсем молодая фишка и работает она&mldr; Ну, как любая совсем новая фишка. Лично я рекомендую использовать для управления supervisord. Его задача - запускать и останавливать другие процессы (в данном контексте - uwsgi). Он обладает очень простым (если не сказать - примитивным) конфигурационным файлом и очень прост в работе. Устанавливаем:</p><pre><code>apt-get install supervisord
+/etc/init.d/supervisor start
+</code></pre><p>Теперь нам надо создать конфиг для нашего приложения. В папке <code>/etc/supervisor/conf.d</code> создаем файл с произвольным именем и окончанием .conf. Содержимое:</p><pre><code>[program:redmine]
+directory=/var/www/redmine
+command=uwsgi --ini /var/www/redmine/uwsgi.ini
+autostart=true
+</code></pre><p>Теперь его надо подключить. У supervisord есть собственная консоль, она называется supervisorctl. Заходим:</p><pre><code>supervisorctl
+#поиск новых конфигов
+supervisor&gt; reread
+#нашелся
+redmine: available
+#добавляем
+supervisor&gt; add redmine
+redmine: added process group
+#проверим, работает?
+supervisor&gt; status
+redmine                          BACKOFF    can't find command 'uwsgi'
+</code></pre><p>Не находится он потому, что supervisorctl не может найти rvm-версию uwsgi. Ок, укажем вручную:</p><pre><code>find / -name uwsgi
+[...]
+/usr/local/rvm/gems/ruby-1.9.3-p429/bin/uwsgi
+[...]
+</code></pre><p>Вносим изменения в наш конфиг <code>/etc/supervisor/conf.d/redmine.conf</code>. Теперь он выглядит так:</p><pre><code>[program:redmine]
+directory=/var/www/redmine
+command=/usr/local/rvm/gems/ruby-1.9.3-p429/bin/uwsgi --ini /var/www/redmine/uwsgi.ini
+autostart=true
+</code></pre><p>Обновим конфиг без перезагрузки supervisord:</p><pre><code>supervisorctl update redmine
+supervisorctl status
+[...]
+redmine                          RUNNING    pid 25365, uptime 0:00:18
+[...]
+</code></pre><p>Отлично, uwsgi работает, подключаем nginx. Debian-way предполагает, что конфигурации сайтов находятся в отдельных файлах каталога /etc/nginx/sites-enabled. Содержимое /etc/nginx/sites-enabled/redmine</p><pre><code>server {
+    listen 80;
+    server_name redmine.office;
+    location @redmine {
+        uwsgi_modifier1 7;
+        include uwsgi_params;
+        uwsgi_pass unix:///tmp/redmine.sock;
+    }
+    location / {
+        root /var/www/redmine/public;
+        try_files $uri $uri/index.html $uri.html @redmine;
+    }
+}
+</code></pre><p>Кроме того, потребуется описание типовых параметров uwsgi, файл /etc/nginx/uwsgi_params</p><pre><code>uwsgi_param     QUERY_STRING            $query_string;
+uwsgi_param     REQUEST_METHOD          $request_method;
+uwsgi_param     CONTENT_TYPE            $content_type;
+uwsgi_param     CONTENT_LENGTH          $content_length;
+
+uwsgi_param     REQUEST_URI             $request_uri;
+uwsgi_param     PATH_INFO               $document_uri;
+uwsgi_param     DOCUMENT_ROOT           $document_root;
+uwsgi_param     SERVER_PROTOCOL         $server_protocol;
+uwsgi_param     UWSGI_SCHEME            $scheme;
+
+uwsgi_param     REMOTE_ADDR             $remote_addr;
+uwsgi_param     REMOTE_PORT             $remote_port;
+uwsgi_param     SERVER_PORT             $server_port;
+uwsgi_param     SERVER_NAME             $server_name;
+</code></pre><p>Теперь достаточно перезапустить nginx - и редмайн готов к использованию!</p></div></article><h3 class="read-next-title noselect">Читать далее</h3><ul class="read-next-posts noselect"><li><a href=/ru/post/2011-08-18-debian-update-distro/>Обновление дистрибутива debian до 6 версии</a></li></ul><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2013-11-14-monitoring-comparsion/>Сравнение систем мониторинга</a></div><div class="right pagination-item"><a href=/ru/post/2013-06-13-cloud-atlas/>Облачный атлас: краткий путеводитель по вычислительным облакам для новичков</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>

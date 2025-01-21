@@ -1,0 +1,154 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>Использование Munin - Инфраструктурный блог</title>
+<meta name=description content="В данной статье рассматривается такой инструмент мониторинга, как Munin. Этот инструмент существует под xNIX (Linux, xBSD, Solaris) и Windows и позволяет централизовано отслеживать и наглядно отображать состояние подшефных систем. Изначально используется для отрисовки графиков, но также его можно использовать как чистое средство для наблюдения. Большой плюс Munin - гибкость (все графики рисуются плагинами, активными на целевых системах, и никто не запрещает использовать только те плагины, которые нужны) и возможность с одного сервера собирать информацию о множестве других. Соответственно, нагрузка на наблюдаемом сервере минимальна. Интересно? Добро пожаловать под кат"><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">Использование Munin</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2011-11-21>2011-11-21</time></div><a class="post-hidden-url u-url" href=/ru/post/2011-11-21-munin-install/>/ru/post/2011-11-21-munin-install/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href>#мониторинг</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#что>Что?</a><ul><li><a href=#обзор-и-архитектура>Обзор и архитектура</a></li></ul></li><li><a href=#как>Как</a><ul><li><a href=#установка-и-диагностика>Установка и диагностика</a></li><li><a href=#пошаговые-инструкции>пошаговые инструкции</a></li><li><a href=#обслуживание>Обслуживание</a></li></ul></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>В данной статье рассматривается такой инструмент мониторинга, как Munin. Этот инструмент существует под xNIX (Linux, xBSD, Solaris) и Windows и позволяет централизовано отслеживать и наглядно отображать состояние подшефных систем. Изначально используется для отрисовки графиков, но также его можно использовать как чистое средство для наблюдения. Большой плюс Munin - гибкость (все графики рисуются плагинами, активными на целевых системах, и никто не запрещает использовать только те плагины, которые нужны) и возможность с одного сервера собирать информацию о множестве других. Соответственно, нагрузка на наблюдаемом сервере минимальна. Интересно? Добро пожаловать под кат</p><h2 id=что><div><a href=#%d1%87%d1%82%d0%be>#
+</a>Что?</div></h2><p>Munin - достаточно не новая система, развившаяся на популярном среди администраторов средстве отрисовки графиков RRDTool. Напомню, что идеология RRDTool состоит в хранении данных по &ldquo;карусельному&rdquo; типу - при заполнении базы фиксированного размера RRDTool начинает затирать данные с хвоста базы (то есть со старых) к голове (к новым), что гарантирует потерю минимального количества полезных данных, но при этом позволяет базе не распухать до безумных размеров (как у HP OpenView или Zabbix). Обычно в базе RRDTool есть несколько каруселей - например &ldquo;мгновенные данные&rdquo; (хранятся неделю), среднее за 5 минут (генерируется на основе мгновенных данных, хранятся месяц) и средние за час (генерируются на основе 5минутных, хранятся год. Такая база весит всего несколько мегабайт, и в размерах никогда не меняется (если данных в базе нет, в хвосте карусели просто стоят нули, слоты в базе под данные создаются сразу все). Минус RRDTool в его же плюсе. Нужно очень внимательно расчитывать емкость базы, потому что отредактировать созданную базу уже невозможно, и вытащить данные с целью перенести в другую базу (аналог DUMP в SQL базах) - тоже. Кроме того, RRDTool отвечает только за <strong>хранение</strong> данных, а их ведь еще откуда-то надо брать&mldr; Изначально админы использовали для этого самописные скрипты &ldquo;на чем печень возжелает&rdquo;, традиционно первые места занимали всесущий Bash и мозголомный Perl (в последнем даже присуствует расширение для работы с RRD, остальные языки вынуждены использовать &ldquo;подпорки&rdquo; в виде вызова rrdtool прямиком из командной строки). Скрипты у всех были разные, качество кода и оптимизация работы таких скриптов гуляла в широчайших пределах. Сам я, на самой заре своей админской карьеры, писал подобные скрипты, причем писал &ldquo;в лоб&rdquo;, простенький скрипт на пяток параметров мог выполнятся несколько секунд. Разумеется, в случае, когда возникает потребность (в инструменте удобного рисования графиков) - возникает и инструмент. Именно таким инструментом стал проект Munin.</p><h3 id=обзор-и-архитектура><div><a href=#%d0%be%d0%b1%d0%b7%d0%be%d1%80-%d0%b8-%d0%b0%d1%80%d1%85%d0%b8%d1%82%d0%b5%d0%ba%d1%82%d1%83%d1%80%d0%b0>##
+</a>Обзор и архитектура</div></h3><p>Munin состоит из двух раздельных частей. Первая - это сервер (собственно, munin) - он опрашивает клиентов, хранит базу и рисует графики. Вторая - клиент (munin-node). Соединение с клиентом всегда инициирует сервер (он запускается по cron). При запуске сервер читает конфиг со списком адресов клиентов, обращается к каждому клиенту (порт - 4949/tcp), получает список возможных параметров, после чего - по списку - значения параметров. Полученые данные загружаются в RRD-файлы (если таковых нет - сервер их создаст). Рисованием готовых графиков ведает отдельный процесс, который хоть и входит в пакет munin, но живет совершенно самостоятельной жизнью.</p><p>В отличае от сервера, клиент - это постоянно находящийся в памяти демон. Написан он, как и сервер, на чистом perl. К слову сказать, единственный способ авторизации - IP, с которого инициируется соединение. Шифрования там также никакого, так что светить демона не советую, firewall и внимательную настройку конфига никто не отменял. Интересный факт, но сам демон ничего не знает о системе, в которой находится. Данные, которые клиент отдает серверу, он получает от плагинов-программ, которые последовательно запускает. За счет этого оптимизируется нагрузка на сервер (всегда можно оставить только те плагины, которые нужны), и вместе с тем - уменьшается время простоя демона, который уже не должен мучительно выдумывать параметры, которых в данной конкретной системе отродясь не бывало.</p><h2 id=как><div><a href=#%d0%ba%d0%b0%d0%ba>#
+</a>Как</div></h2><h3 id=установка-и-диагностика><div><a href=#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%b4%d0%b8%d0%b0%d0%b3%d0%bd%d0%be%d1%81%d1%82%d0%b8%d0%ba%d0%b0>##
+</a>Установка и диагностика</div></h3><p>Как я уже упомниал выше, munin состоит из двух пакетов. Ставятся они тривиально, но нужно быть готовым к тому, что munin (сервер) потащит за собой немалую гору пакетов, отвечающих за RRD и графику (GD). Если мониторить надо один сервер - надо ставить оба пакета (пример для debian):</p><pre><code>apt-get install munin munin-node
+</code></pre><p>В отличае от monit, munin не может выполнять никаких действий в системе (кроме сбора статистики), как следствие - его можно запускать сразу после установки. В Debian GNU/Linux и CentOS демон запускается сам:</p><pre><code>lab:~# ps ax | grep muni
+16139 ?        Ss     0:00 /usr/sbin/munin-node
+</code></pre><p>Активация плагинов сделана также просто и незатейливо - в папке с настройками munin (в linux это /etc/munin, а во freebsd - /usr/local/etc/munin) есть папка plugins. Все плагины, присутствующие в папке на момент запуска munin-node считаются активными. Если присутствующий плагин по какой-то причине отказывается работать (например, плагин сбора данных о MySQL при остановленом сервисе mysqld) - node вернет 0 при попытке получения информации из плагина.
+На самом деле, все доступные плагины лежат обычно в другом месте, а в эту папку сложены симлинки.
+Вот пример:</p><pre><code>lab:~# ls -al /etc/munin/plugins/
+total 2
+drwxr-xr-x 2 root root 1024 2009-06-21 15:31 .
+drwxr-xr-x 5 root root 1024 2010-02-11 23:35 ..
+lrwxrwxrwx 1 root root   29 2009-05-19 16:39 acpi -&gt; /usr/share/munin/plugins/acpi
+lrwxrwxrwx 1 root root   28 2009-03-22 22:51 cpu -&gt; /usr/share/munin/plugins/cpu
+lrwxrwxrwx 1 root root   27 2009-03-22 22:51 df -&gt; /usr/share/munin/plugins/df
+...
+</code></pre><p>Изначально с munin поставляется немлое количество плагинов (обращаю внимание - активны не все!), кроме того, есть сайты, где также выложены плагины. Кроме того, существует руководство по написанию плагинов самостоятельно, но эта тема уже заметно выходит за рамки статьи.
+Некоторые плагины поддерживают аргументы вызова. Вот яркий пример:
+Реальные файл плагина</p><pre><code>-rwxr-xr-x 1 root root  4775 2009-11-25 13:38 if_
+-rwxr-xr-x 1 root root  3164 2009-11-25 13:38 if_err_
+
+А вот что лежит в конфигурационной директории:
+
+lab:~# ls -al /etc/munin/plugins/ | grep if
+root root   32 2009-03-22 22:51 if_err_eth0 -&gt; /usr/share/munin/plugins/if_err_
+root root   32 2009-03-22 22:51 if_err_eth1 -&gt; /usr/share/munin/plugins/if_err_
+root root   28 2009-03-22 22:51 if_eth0 -&gt; /usr/share/munin/plugins/if_
+root root   28 2009-03-22 22:51 if_eth1 -&gt; /usr/share/munin/plugins/if_
+root root   28 2009-06-21 15:31 if_tun0 -&gt; /usr/share/munin/plugins/if_
+</code></pre><p>Без аргументов подобные плагины вызывать бесполезно - они не будут понимать, чего от них хотят.</p><p>Некоторые плагины поддерживают дополнительные настройки. Например, для плагина, собирающего информацию о MySQL можно задать логин и пароль для входа на сервер. Подобные настройки munin хранит в файле {confdir}/plugin-conf.d/munin-node.</p><p>Файл довольно подробно прокомментирован, но я, на всякий случай, приведу тут пару примеров:</p><pre><code>#информация для плагина APT
+[apt]
+#запускать от имени root. В противном случае APT не запускается
+user root
+
+#информация для всех плагинов множества smart_,
+#эти плагины вызываются по принципу smart_{DISK}
+[smart_*]
+#опять же, только root сможет прочитать параметры из smartctl
+user root
+
+#информация для плагина postgres_queries, база mngsearch
+[postgres_queries_mngsearch]
+#env.{имя} у каждого плагина могут быть своими.
+#Подробно надо смотреть в source-коде плагина
+#в данном примере мы задаем имя пользователя и пароль
+#для получения данных о работе базы mngsearch
+env.PGUSER mngsearch
+env.PGPASSWORD Yn2ajPV4f6V5rzqj
+</code></pre><p>Как можно убедится из примера выше, синтаксис файла очень несложный.</p><h3 id=пошаговые-инструкции><div><a href=#%d0%bf%d0%be%d1%88%d0%b0%d0%b3%d0%be%d0%b2%d1%8b%d0%b5-%d0%b8%d0%bd%d1%81%d1%82%d1%80%d1%83%d0%ba%d1%86%d0%b8%d0%b8>##
+</a>пошаговые инструкции</div></h3><p>Сворачиваем растекание мыслью по древу. Теперь - четкие и понятные пошаговые инструкции.
+Установка пакетов производится средствами ОС, собирать их из SRC не советую. Рассмотрим ситуацию, когда наблюдатель и наблюдаемый - физически одна машина.
+Для начала настроим клиент:</p><pre><code>vi /etc/munin/munin-node.conf
+...
+log_level 4
+#&quot;говорливость&quot; munin в журнале. 10 - режим отладки, 1 - полная тишина
+log_file /var/log/munin/munin-node.log
+#путь к журналу. Должен уже существовать
+pid_file /var/run/munin/munin-node.pid
+#pid-file, менять без необходимости не советую
+
+background 1
+#режим демона. Для отладки ставим 0 - и нод будет вечно висеть на консоли
+setseid 1
+
+user root
+group root
+#имя владельца процесса.
+#У него должны быть права на получение ID каждого имени пользователя,
+#от имени которых запускается плагин проверки
+#лучше пусть root и остается
+setsid yes
+#выставлять ID пользователя для каждого плагина. Трогать не советую
+
+allow ^127\.0\.0\.1$
+#с какого IP придет запрос сервера. В нашем случае - 127.0.0.1
+#обращаю ваше внимание на то, что это регулярное выражение (RegExp).
+
+host 127.0.0.1
+#к какому IP привязывать демон. В данном примере - к 127.0.0.1
+
+port 4949
+#соовтвественно, порт.
+</code></pre><p>Изменение конфига или списка плагинов требует перезапуска демона. При изменении списка плагинов нужно именно перезапускать демона, kill -HUP в данной ситуации не поможет.</p><p>Проверяем работу демона:</p><pre><code>lab:/etc/munin# telnet 127.0.0.1 4949
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+# munin node at lab.local.logan
+
+list
+open_inodes ip_127.0.0.1 postgres_queries_mngsearch irqstats
+if_eth0 squid_cache sensors_temp df tor_connections swap
+load cpu df_inode smart_hda forks iostat sensors_fan open_files
+memory postgres_queries_netams exim_mailqueue vmstat sensors_volt
+if_err_eth0 entropy processes acpi interrupts mysql_bytes if_tun0 if_err_eth1
+if_eth1 tor_traffic exim_mailstats
+
+fetch ip_127.0.0.1
+in.value 83599135
+out.value 83599135
+.
+quit
+Connection closed by foreign host.
+</code></pre><p>Командной list мы получили список активных плагинов, командой fetch - получили данные из одного плагина. Демон мониторинга ведет себя точно также, что позволяет с высокой степенью достоверности убедится в правильности работы клиента-нода.</p><p>Теперь переходим к серверу. В отличае от клиента (нода) - сервер не существует как процесс, он запускается только в моменты получения данных и рисования графиков (и то не всегда, этот вопрос будет рассмотрен ниже)
+В списке процессов выглядит это вот так:</p><pre><code>lab:~# ps ax | grep muni
+16139 ?        Ss     0:00 /usr/sbin/munin-node
+17842 ?        S      0:00 /bin/sh /usr/bin/munin-cron
+17843 ?        S      0:00 /usr/bin/perl -w /usr/share/munin/munin-update
+17846 ?        S      0:00 /usr/share/munin/munin-update [r1sz.zooclub.ru]
+17847 ?        S      0:00 /usr/share/munin/munin-update [web1.zooclub.ru]
+17848 ?        S      0:00 /usr/share/munin/munin-update [monitor-01.infobox.ru]
+17849 ?        S      0:00 /usr/share/munin/munin-update [stat.kpp.ru]
+17851 ?        S      0:00 /usr/share/munin/munin-update [ro2-h.local]
+17852 ?        S      0:00 /usr/share/munin/munin-update [ro1-h.local]
+17853 ?        S      0:00 /usr/sbin/munin-node
+</code></pre><p>Настройки демона находятся в файле {config}/munin.conf
+Он также очень подробно откомментирван, и ниже я приведу минимальный работоспособный пример.</p><pre><code>dbdir   /home/db/monitor
+#место, где хранятся RRD. Путь должен существовать, а rrd демон создаст сам
+htmldir /home/www/mon
+#куда выкладывать готовые графики
+logdir  /var/log/munin
+#где лежат логи
+rundir  /var/run/munin
+
+#Описания серверов
+[lab.local]
+    address 127.0.0.1
+    use_node_name yes
+#эта директива нужна, на страничке с графиками отображалось имя узла, а не его адрес.
+
+[midori.local]
+#другой сервер, в той же группе
+    address 10.9.8.7
+    use_node_name yes
+
+[web2.zooclub.ru]
+#сервер в другой группе
+    address 77.221.150.98
+    use_node_name yes
+
+contact.logan.command mail -s &quot;Munin notification&quot; logan@mydomain.my
+#слать сообщения об ошибках.
+#Информацию об ошибке сервер принимает от клиента.
+#Изменение статуса (ОК&lt;-&gt;ОШИБКА) будет сопровождатся письмом
+
+#graph_strategy cgi
+#можно использовать CGI для отрисовки графиков вместо отрисовки по крону.
+#Это уменьшает нагрузку на сервер, если графики смотрят редко.
+#Если графики смотрят часто (или много народу) - вы уложите сервер.
+</code></pre><p>Указаных выше настроек вполне хватит для нормальной работы. Более подробно эти настройки указаны в документации, но ждать многого от munin не надо - это полезный, но очень простой и ограниченый инструмент.</p><h3 id=обслуживание><div><a href=#%d0%be%d0%b1%d1%81%d0%bb%d1%83%d0%b6%d0%b8%d0%b2%d0%b0%d0%bd%d0%b8%d0%b5>##
+</a>Обслуживание</div></h3><p>Munin имеет простейшее устройство, строго в рамках unix-way. Периодического обслуживания он не требует, а непереодическое - осуществляется очень просто. Разберем основные случаи:</p><ul><li><p>Жрет процессор и/или рисует графики с разрывами. Важно - Разрывы в рамках одной ноды на графиках расположены по-разному. Основная причина - не успевает отрабатывать процесс рисования (munin-graph). Надо либо уменьшить количество параметров, которые munin получает с нод (удалив там неиспользуемые плагины), либо перенастроить munin на fcgi режим (графики будут отрисованы при обращении), либо переезжать на другую машину.</p></li><li><p>График не рисуется совсем или не обновляется. Проблема в правах доступа на папку, куда munin-graph складывает графики. По умолчанию владелец папки должен быть munin, права на запись, чтение и вхождение в папку у него должны быть. Узнать, кто точно владеет папкой, поможет команда</p><p>ps auxww | grep graph</p></li><li><p>Как мигрировать munin server (вариант - сделать резервную копию). Чтобы перенести munin - достаточно перенести папку dbdir из конфигурации. Точно соблюдать версию при переносе не обязательно, munin очень давно не меняет структуру баз при обновлении версии. Папки с графиком переносить совершенно не обязательно, munin всегда рисует графики с нуля, основываясь на данных из базы.</p></li></ul></div></article><h3 class="read-next-title noselect">Читать далее</h3><ul class="read-next-posts noselect"><li><a href=/ru/post/2011-06-23-monit-howto/>Monit - наблюдатель за системными процессами</a></li></ul><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2013-05-21-brave-new-world/>Дивный новый мир</a></div><div class="right pagination-item"><a href=/ru/post/2011-08-18-debian-update-distro/>Обновление дистрибутива debian до 6 версии</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>

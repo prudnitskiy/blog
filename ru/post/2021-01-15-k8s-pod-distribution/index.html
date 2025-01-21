@@ -1,0 +1,210 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>Распределяем pod-ы по машинам в kubernetes - Инфраструктурный блог</title>
+<meta name=description content="Как распределить POD-ы и не пожалеть об этом"><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">Распределяем pod-ы по машинам в kubernetes</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2021-01-15>2021-01-15</time></div><a class="post-hidden-url u-url" href=/ru/post/2021-01-15-k8s-pod-distribution/>/ru/post/2021-01-15-k8s-pod-distribution/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href=/ru/tags/k8s/>#K8s</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#зачем-управлять-распределением-pod-ов>Зачем управлять распределением POD-ов?</a></li><li><a href=#способы-управления>Способы управления</a><ul><li><a href=#nodeselector>NodeSelector</a></li><li><a href=#taints-and-tolerations>Taints and Tolerations</a></li><li><a href=#nodeaffinity>nodeAffinity</a></li><li><a href=#static-pod-allocations>Static pod allocations</a></li></ul></li><li><a href=#порядок-применения>Порядок применения</a></li><li><a href=#заключение>Заключение</a></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>Kubernetes иногда называют &ldquo;операционной системой для дата-центров&rdquo; &ndash; и в этом есть логика. K8s позволяет представить группу серверов (условный ЦОД) как единое вычислительное пространство. Оператор просто бросает задания в K8s, а тот сам выбирает, где тот или иной контейнер лучше разместить. Чаще всего делает это он хорошо. Но иногда появляется необходимость как-то управлять этим процессом. Об этом я и расскажу.</p><h2 id=зачем-управлять-распределением-pod-ов><div><a href=#%d0%b7%d0%b0%d1%87%d0%b5%d0%bc-%d1%83%d0%bf%d1%80%d0%b0%d0%b2%d0%bb%d1%8f%d1%82%d1%8c-%d1%80%d0%b0%d1%81%d0%bf%d1%80%d0%b5%d0%b4%d0%b5%d0%bb%d0%b5%d0%bd%d0%b8%d0%b5%d0%bc-pod-%d0%be%d0%b2>#
+</a>Зачем управлять распределением POD-ов?</div></h2><p>Зачем вообще нужно привязывать поды к определенным узлам? Это может быть связано с производительностью, безопасностью или надежность. Например &ndash; pod может требовать доступ к специфическому железу (видеокарты и ML-ускорители для задач машинного обучения, аппаратные криптоускорители). Это может быть продиктовано безопасностью: критические части проекта будут размещаться на машинах, где физически не может быть ничего, кроме них. Это снижает шансы на то, что удачный взлом, скажем, сервиса регистраций раскроет данные о платежах. Некоторые стандарты безопасности (включая PCI DSS) имеют даже требования к физической безопасности серверов &ndash; датчики вскрытия, пломбы на корпусках, запрет на доступ. Отдельная удобная особенность &ndash; tier-инг. Нагрузку в кластере можно разделить на &ldquo;важную&rdquo; и &ldquo;не очень&rdquo;. Под важную выделять мощные современные машины с резервированием PSU, горячей замены дисков и памяти, под &ldquo;не очень&rdquo; &ndash; соскрести какой-нибудь хлам. В облаках это делается даже проще за счет spot instances. Такие инстансы дешевле (порой радикально), но их работу никто не гарантирует &ndash; инстанс может отключится в любой момент (вместо него появится новый). Это вызовет пересоздание POD-ов, но для чего-то маловажного это, может &ndash; и не страшно совсем.</p><h2 id=способы-управления><div><a href=#%d1%81%d0%bf%d0%be%d1%81%d0%be%d0%b1%d1%8b-%d1%83%d0%bf%d1%80%d0%b0%d0%b2%d0%bb%d0%b5%d0%bd%d0%b8%d1%8f>#
+</a>Способы управления</div></h2><h3 id=nodeselector><div><a href=#nodeselector>##
+</a>NodeSelector</div></h3><p>Это самый простой способ управления аллокацией. Он предельно прямолинеен &ndash; запутаться в нем невозможно. Выполняется в 2 этапа. Сначала надо поставить метки на node командой label:</p><pre><code>kubectl label nodes snowflake3 disk=hdd
+</code></pre><p>Проверить, какие метки уже есть можно через <code>kubectl describe nodes</code></p><p>Теперь можно указать pod-у требование на привязку к конкретной метке. Для аллокации пода будут использоваться только помеченые узлы, то есть при включении nodeSelector для пода ноды без меток будут игнорироваться:</p><pre><code>apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+  nodeSelector:
+    disk: hdd
+</code></pre><p>Для deployment nodeSelector передается в шаблон pod-а, как обычно. Не смотря на удобство и прямолинейность подхода &ndash; nodeSelector имеет три минуса:</p><ul><li>nodeSelector применяется в момент аллокации пода и бесполезен, если под уже аллоцирован. Если вам нужно &ldquo;освободить&rdquo; ноду &ndash; придется поставить на нее метку и затем выкинуть оттуда поды командой <code>drain</code></li><li>nodeSelector не особенно гибкий и работает по принципу &ldquo;один к одному&rdquo;. К примеру, можно сделать метки для машин <code>small</code>, <code>medium</code> и <code>large</code> и указать поду, что он должен развернуться на машине класса <code>small</code>. Но нельзя &ndash; на машине класса <code>medium</code> или <code>large</code> &ndash; возможен только один вариант.</li><li>nodeSelector не запрещает аллокаций. То есть на машине с меткой могут размещаться поды без nodeAffinity. Для решения этой проблемы придуман иной подход.</li></ul><h3 id=taints-and-tolerations><div><a href=#taints-and-tolerations>##
+</a>Taints and Tolerations</div></h3><p>Taints &ndash; это NodeAffinity наоборот. Если nodeAffinity говорит scheduler-у, где он должен размещать pod-ы, то taint говорит, где pod-ы размещать <em>нельзя</em>. Любой taint запрещает размещение на машине любых подов (есть одно исключение, про него дальше). Однако можно создать под, который будет игнорировать (<code>tolerate</code>) этот запрет &ndash; и данный pod запустится на данной машине. Даже если у вас есть совершенно пустой нормальный кластер kubernetes &ndash; у вас уже есть taint. По умолчанию kubernetes запрещает размещать обычные поды на master nodes &ndash; это taint <code>node-role.kubernetes.io/master</code></p><p>taint создается с помощью команды <code>kubectl taint</code>. Общий вид:</p><pre><code>kubectl taint nodes nodeName taintKey=taintValue:taintEffect
+</code></pre><p>taintKey и taintValue &ndash; это просто метки, они могут быть произвольными. У taintEffect есть 3 возможных значения:</p><ul><li>NoSchedule &ndash; новые поды не будут аллоцироваться, однако существующие продолжат свою работу</li><li>PreferNoSchedule &ndash; новые поды не будут аллоцироваться, если в кластере есть свободное место</li><li>NoExecute &ndash; все запущенные поды без tolerations должны быть убраны</li></ul><p>Теперь о том, как прописываются tolerations. Язык tolerations слегка сложнее прямолинейного подхода nodeAffinity:</p><pre><code>apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+  tolerations:
+  - key: &quot;pft-env&quot;
+    operator: &quot;Exists&quot;
+    effect: &quot;NoSchedule&quot;
+</code></pre><p>в данном примере мы создадим под, который будет игнорировать taint, созданный вот такой командой:</p><pre><code>kubectl taint nodes pft-node-1 pft-env=true:NoSchedule
+</code></pre><p>Есть более сложный вариант &ndash; можно учитывать не только факт наличия метки, но и ее значение. Создадим пару taint-ов:</p><pre><code>kubectl taint nodes secure-1 secGroup=secure:NoSchedule
+kubectl taint nodes insecure-2 secGroup=unsafe:NoSchedule
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault
+  labels:
+    env: test
+spec:
+  containers:
+  - name: vault
+    image: vault
+  tolerations:
+  - key: &quot;secGroup&quot;
+    operator: &quot;Equals&quot;
+    value: &quot;secure&quot;
+    effect: &quot;NoSchedule&quot;
+</code></pre><p>В данном примере pod vault будет создан только на ноде secure-1, потому что только на ней <code>secGroup</code> равен <code>secure</code>.</p><p>Taint-ов можно создать сколь угодно много и условия проверки можно сочетать, как в примере ниже:</p><pre><code>apiVersion: v1
+kind: Pod
+metadata:
+  name: processing
+  labels:
+    env: test
+spec:
+  containers:
+  - name: processing
+    image: processing
+  tolerations:
+  - key: &quot;dedicatedNode&quot;
+    operator: &quot;Exists&quot;
+    effect: &quot;NoSchedule&quot;
+  - key: &quot;secGroup&quot;
+    operator: &quot;Equals&quot;
+    value: &quot;secure&quot;
+    effect: &quot;NoExecute&quot;
+</code></pre><p>В данном примере мы выделяем пул выделенных машин taint-ом &ldquo;dedicatedNode&rdquo; и отдельно помечаем группу максимальной безопасности значением secure для группы secGroup.</p><p>Удалить taint можно, добавив в конец знак минуса:</p><pre><code>kubectl taint nodes secure-1 secGroup=secure:NoSchedule-
+</code></pre><h3 id=nodeaffinity><div><a href=#nodeaffinity>##
+</a>nodeAffinity</div></h3><p>Не смотря на простоту и эффективность механизма nodeSelector &ndash; механизм это прямолинейный и не особенно гибкий. Авторы kubernetes предлагают более мощный, гибкий (а так же &ndash; сложный и неудобный) механизм &ndash; nodeAffinity. Язык описания nodeAffinity предлагает несколько мощных возомжностей:</p><ul><li>логические операторы для выбора условия размещения &ndash; IN (размещать на одной из нод с разными метками) или AND (размещать на нодах, имеющих обе метки сразу)</li><li>можно выбраить политики размещения pod-ов относительно друг друга: например &ndash; запретить экземплярам кэша оказываться на одной физической машине или требовать размещение приложения вместе с экземпляром кеша на одном физическом узле</li></ul><p>Минус nodeAffinity в том, что язык очень многословный и читается тяжело. Общая спецификация выглядит так:</p><pre><code>spec:
+  affinity:
+    nodeAffinity:
+      {affinityClass}:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: {affinityKey}
+            operator: {affinityOperator}
+            values:
+            - {affinityValues}
+</code></pre><p>affinityClass влияет на строгость выбора узла:</p><ul><li>requiredDuringSchedulingIgnoredDuringExecution: обязательно размещать pod-ы по требованию nodeAffinity. Если разместить не получится &ndash; pod застрянет в статусе Pending</li><li>preferredDuringSchedulingIgnoredDuringExecution: по возможности размещать pod-ы по требованиям affinity. Если поды не влезли &ndash; scheduler разместит их &ldquo;как получится&rdquo;</li></ul><p>affinityKey &ndash; это метка (ключ), по которой мы будем искать ноды для размещения pod-ов.
+affinityValues &ndash; это значения метки, которые нам подойдут
+affinityOperator &ndash; это тот логический оператор, по которому будет производится выбор метки. Варианты:</p><ul><li>In &ndash; подойдет любое из перечисленных значений</li><li>NotIn &ndash; противоположно In</li><li>Exists &ndash; метка просто есть (values игнорируется)</li><li>DoesNotExists &ndash; противоположно Exists</li><li>Gt &ndash; Greater than &ndash; значение метки больше указанного в политике числа. Сработает только для чисел</li><li>Lt &ndash; Less than &ndash; противоположно Gt</li></ul><p>affinityClass preferredDuringSchedulingIgnoredDuringExecution слегка отличается &ndash; вместо nodeSelectorTerms используется поле preference (синтаксис такой же), плюс есть обязательное поле weight &ndash; оно отвечает за приоритет при выборе node.</p><p>Пример:</p><pre><code>apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-with-node-affinity
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/e2e-az-name
+            operator: In
+            values:
+            - e2e-az1
+            - e2e-az2
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: kubernetes.io/node-tier
+            operator: In
+            values:
+            - silver
+            - bronze
+  containers:
+  - name: with-node-affinity
+    image: k8s.gcr.io/nginx
+</code></pre><p>affinity не учитывается для уже аллоцированных nodes, так что если нужно освободить node-у от всех подов которые там уже есть &ndash; поможет команда <code>kubectl node drain</code></p><h4 id=лирическое-отступление----podaffinitty-и-podantiaffinitty><div><a href=#%d0%bb%d0%b8%d1%80%d0%b8%d1%87%d0%b5%d1%81%d0%ba%d0%be%d0%b5-%d0%be%d1%82%d1%81%d1%82%d1%83%d0%bf%d0%bb%d0%b5%d0%bd%d0%b8%d0%b5----podaffinitty-%d0%b8-podantiaffinitty>###
+</a>Лирическое отступление &ndash; PodAffinitty и PodAntiAffinitty</div></h4><p>Механизм, который помогает размещать pod-ы относительно нод &ndash; может так же помочь и разместить pod-ы относительно друг друга &ndash; за это отвечают классы PodAffinity и PodAntiAffinity. Все три класса можно сочетать друг с другом, синтаксис внутри одинаковый, по этому просто покажу пример:</p><pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-cache
+spec:
+  selector:
+    matchLabels:
+      app: store
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: store
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - store
+            topologyKey: &quot;kubernetes.io/hostname&quot;
+      containers:
+      - name: redis-server
+        image: redis:3.2-alpine
+</code></pre><p>В этом примере мы запрещаем экземплярам redis размещаться на одном узле. Каждый pod в этом deployment получит метку <code>app:store</code>, политика podAntiAffinity запрещает размещать второй под с меткой app=store на ноде с таким же hostname. Важный параметр тут &ndash; topologyKey. Именно по нему scheduler понимает, какие node-ы считаются одной зоной размещения,а какие &ndash; нет. Усложним пример, добавив web worker:</p><pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-server
+spec:
+  selector:
+    matchLabels:
+      app: web-store
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: web-store
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - web-store
+            topologyKey: &quot;kubernetes.io/hostname&quot;
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - store
+            topologyKey: &quot;kubernetes.io/hostname&quot;
+      containers:
+      - name: web-app
+        image: nginx:1.16-alpine
+</code></pre><p>В этом примере мы размещаем nginx на разных node (как мы сделали с redis), но при этом требуем, чтобы nginx размещался вместе с redis. Это может быть удобно для кешей. Проверим, что получилось:</p><pre><code>&gt; kubectl get pods -o wide
+
+NAME                           READY     STATUS    RESTARTS   AGE       IP           NODE
+redis-cache-1450370735-6dzlj   1/1       Running   0          8m        10.192.4.2   kube-node-3
+redis-cache-1450370735-j2j96   1/1       Running   0          8m        10.192.2.2   kube-node-1
+redis-cache-1450370735-z73mh   1/1       Running   0          8m        10.192.3.1   kube-node-2
+web-server-1287567482-5d4dz    1/1       Running   0          7m        10.192.2.3   kube-node-1
+web-server-1287567482-6f7v5    1/1       Running   0          7m        10.192.4.3   kube-node-3
+web-server-1287567482-s330j    1/1       Running   0          7m        10.192.3.2   kube-node-2
+</code></pre><h3 id=static-pod-allocations><div><a href=#static-pod-allocations>##
+</a>Static pod allocations</div></h3><p>Это очень редкий случай, но не упомянуть его было бы нечестно. Pod-ы можно аллоцировать полностью статически, вручную привязав к конкретной node. В этом случае scheduler никак на них не влияет. На них не действуют taints, nodeSelector и podAffinity. Даже node drain ничего не сможет с такими подами сделать. Зачем это может потребоваться? Ну, во-первых для запуска таких pod-ов не нужен работающий scheduler или apiserver. Это делает размещение таких подов сверхнадежным &ndash; они будут работать всегда. Именно так kubeadm устанавливает свои компоненты &ndash; это не полноценные демоны, а контейнеры, которые вручную привязаны к master node.</p><p>Во-вторых такой подход может потребоваться в случае, если какой-то контейнер надо привязать к конкретной, строго определенной node вручную и ни при каких условиях не давать ему оттуда уезжать. Скажем, у вас какое-то особое шифрование и оно зависит от HSM, который физически подключен к определенной, особо защищенной машине. Вообще &ndash; это порочная практика и такой сценарий лучше решается через nodeSelector + taint, но мало ли?</p><p>Выполнить статическую аллоакцию очень просто &ndash; нужно положить манифесты pod-ов в папку со статическими подами. Этот путь можно задать двумя путями:</p><ul><li>через аргумент командной строки kubelet: <code>--pod-manifest-path</code></li><li>через параметр конфига <code>staticPodPath</code></li></ul><p>Если у вас kubernetes установлен через kubeadm &ndash; этот параметр там уже есть, kubelet будет искать статические манифесты по адресу <code>/etc/kubernetes/manifests</code>. Kubelet перечитывает папку с манифестами каждые 10 секунд. Если удалить манифест &ndash; kubernetes удалит pod.</p><p>Просто создадим манифест статического пода</p><pre><code>cat &lt;&lt;EOF &gt;/etc/kubernetes/manifests/static-web.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: static-web
+  labels:
+    role: static
+spec:
+  containers:
+    - name: web
+      image: nginx
+      ports:
+        - name: web
+          containerPort: 80
+          protocol: TCP
+EOF
+</code></pre><p>И проверим, что получилось:</p><pre><code>&gt; kubectl get pods -l role=static
+
+NAME                       READY     STATUS    RESTARTS   AGE
+static-web-my-node1        1/1       Running   0          2m
+</code></pre><h2 id=порядок-применения><div><a href=#%d0%bf%d0%be%d1%80%d1%8f%d0%b4%d0%be%d0%ba-%d0%bf%d1%80%d0%b8%d0%bc%d0%b5%d0%bd%d0%b5%d0%bd%d0%b8%d1%8f>#
+</a>Порядок применения</div></h2><p>Первым всегда применяется static pod. Он игнорирует все (taints, affinities, node selectors).</p><p>Вторым по списку применяется taint. Если у pod нет toleration &ndash; он не будет размещен, по этому taint &ndash; это очень эффективный способ &ldquo;разогнать&rdquo; pod-ы с определенного узла (или группы узлов).</p><p>В случае, если есть nodeAffinity и nodeSelector &ndash; должны сработать оба условия сразу (то есть &ndash; и метка селектора и условия affinity).</p><h2 id=заключение><div><a href=#%d0%b7%d0%b0%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5>#
+</a>Заключение</div></h2><p>Kubernetes &ndash; мощный, богатый на возможности инструмент. Он кажется слегка неудобным, но ровно до момента понимания логики его работы. Scheduler у kubernetes практически ключевой компонент, и он достаточно гибок, пусть и не самым лучшим образом описан. Надеюсь &ndash; эта статья кому-то поможет. Высокого вам аптайма!</p></div></article><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2022-02-16-CKA/>Как сдать экзамен Cerified Kubernetes Administrator: личный опыт</a></div><div class="right pagination-item"><a href=/ru/post/2020-06-23-restic-quickstart/>Restic: backup для современного мира</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>

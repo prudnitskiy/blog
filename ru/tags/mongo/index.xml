@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Mongo on Инфраструктурный блог</title><link>/ru/tags/mongo/</link><description>Инфраструктурный блог (Mongo)</description><generator>Hugo -- gohugo.io</generator><language>ru-ru</language><lastBuildDate>Sun, 06 Sep 2015 00:13:48 +0000</lastBuildDate><atom:link href="/ru/tags/mongo/index.xml" rel="self" type="application/rss+xml"/><item><title>Миграция на mongo replica set без потери данных</title><link>/ru/post/2015-09-06-mongo-shard/</link><pubDate>Sun, 06 Sep 2015 00:13:48 +0000</pubDate><guid>/ru/post/2015-09-06-mongo-shard/</guid><description>&lt;p>По сути - это не статья, а, скорее, просто памятка, чтобы самому не забыть. MongoDB - популярный документо-ориентированный движок управления базой. Штатно он имеет две разных технологии кластеризации: репликационные наборы (replica set) и шардирование (shard). Разница проста - в случае реплики на всех узлах данные одинаковы и любой узел может выступать источником данных (&lt;strong>внимание, mongodb не является CAP-полной базой, так что точность данных тут под большим вопросом!&lt;/strong>), что обеспечивает отказоустойчивость. В случае шардирования данные &amp;ldquo;размазаны&amp;rdquo; по всему набору шарда, но каждый сервер внутри шарда имеет только свои данные. За счет этого распределяется нагрузка (например, с трех узлов данные можно читать параллельно), но снижается надежность - упавший узел означает потерю части данных шарда. В данной статье будет описание, как переехать с единичной монги на репсет не потеряв при этом данные.&lt;/p>
+&lt;p>Важной особенностью репсета является тот факт, что в нем всегда только один мастер, и запись можно производить только на мастер. Таким забавным способом mongo борется с потенциальными конфликтами конкурентной записи данных (задача, на самом деле, куда как непростая, Riak это ярко демонстрирует). В случае, если мастер умер - производятся выборы нового мастера. К слову, пока они идут - в репсет нельзя записать ничего, от слова совсем.&lt;/p>
+&lt;h2 id="инструкция" >
+&lt;div>
+&lt;a href="#%d0%b8%d0%bd%d1%81%d1%82%d1%80%d1%83%d0%ba%d1%86%d0%b8%d1%8f">
+#
+&lt;/a>
+Инструкция
+&lt;/div>
+&lt;/h2>
+&lt;p>Итак, у нас есть одна MongoDB, к которой подключено приложение и мы хотим перевести это приложение на работу с кластером. Авторы mongo рекомендуют иметь нечетное количество узлов в наборе для гарантии достижения кворума, то есть потребуется 3 сервера. В отличае от MySQL - управление выбором узлов для чтения и записи в монго возложено на драйвер (то есть - коннектор языка программирования к базе, а не на саму базу). Перед началом работ очень рекомендую, умеет ли ваш драйвер работать с репсетами. Первое, что нужно поменять - это в файле настроек указать IP адрес, на который mongo привязывается (она должна быть доступна по сети) и задать параметр replicationSet. Один инстанс mongo может одновременно находится только в одном replication set. Параметр - не динамический, mongo надо перезапустить для его применения. Вписываем в /etc/mongo:&lt;/p>
+&lt;pre>&lt;code>#имя replica set. Должно быть уникальным, но единым для всего набора
+replSet=replica1
+#bind_ip закомментирован - слушать на всех доступных адресах.
+#bind_ip=
+port=27017
+&lt;/code>&lt;/pre>
+&lt;p>Перезапускаем mongo, подключаемся к консоли (команда mongo) и инициируем набор:&lt;/p>
+&lt;pre>&lt;code># service mongodb restart
+# mongo
+&amp;gt; rs.initiate()
+{
+&amp;quot;info2&amp;quot; : &amp;quot;no configuration explicitly specified -- making one&amp;quot;,
+&amp;quot;me&amp;quot; : &amp;quot;db1.cluser:27017&amp;quot;,
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы быть уверенными, что мастером останется именно тот сервер, с которого мы начинаем конфигурирование (и на котором храним данные, которые не хотим потерять) - повысим ему приоритет в наборе. Мастер выбирается по принципу - случайный из максимального доступного приоритета, приоритет 0 будет означать, что данный сервер стать мастером не сможет никогда.&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; cfg = rs.conf()
+{
+&amp;quot;_id&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;version&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;host&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;arbiterOnly&amp;quot; : false,
+&amp;quot;buildIndexes&amp;quot; : true,
+&amp;quot;hidden&amp;quot; : false,
+&amp;quot;priority&amp;quot; : 1,
+&amp;quot;tags&amp;quot; : {
+},
+&amp;quot;slaveDelay&amp;quot; : 0,
+&amp;quot;votes&amp;quot; : 1
+}
+],
+&amp;quot;settings&amp;quot; : {
+&amp;quot;chainingAllowed&amp;quot; : true,
+&amp;quot;heartbeatTimeoutSecs&amp;quot; : 10,
+&amp;quot;getLastErrorModes&amp;quot; : {
+},
+&amp;quot;getLastErrorDefaults&amp;quot; : {
+&amp;quot;w&amp;quot; : 1,
+&amp;quot;wtimeout&amp;quot; : 0
+}
+}
+}
+replica1:PRIMARY&amp;gt; cfg.members[0].priority = 100
+100
+replica1:PRIMARY&amp;gt; rs.reconfig(cfg)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>Проверим состояние нашей реплики:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.status()
+{
+&amp;quot;set&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;date&amp;quot; : ISODate(&amp;quot;2015-08-20T19:38:18.845Z&amp;quot;),
+&amp;quot;myState&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;name&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 1,
+&amp;quot;stateStr&amp;quot; : &amp;quot;PRIMARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 96,
+&amp;quot;optime&amp;quot; : Timestamp(1440099489, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-20T19:38:09Z&amp;quot;),
+&amp;quot;electionTime&amp;quot; : Timestamp(1440099465, 2),
+&amp;quot;electionDate&amp;quot; : ISODate(&amp;quot;2015-08-20T19:37:45Z&amp;quot;),
+&amp;quot;configVersion&amp;quot; : 2,
+&amp;quot;self&amp;quot; : true
+}
+],
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre>
+&lt;p>Все ок. Ставим новый (пустой) сервер с mongo, прописываем в настройках replica set, запускаем. Теперь надо новый сервер добавить в набор:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.add(&amp;quot;db2.cluster:27017&amp;quot;)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>Узлы кластера должны быть доступны друг другу по порту, на котором работает mongo (по умолчанию 27017). Если используются имена, а не IP-адреса - важно убедится в том, что они правильно определяются со всех машин. Сервера общаются асинхронно, все со всеми. Проверим состояние нашего набора:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.status()
+{
+&amp;quot;set&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;date&amp;quot; : ISODate(&amp;quot;2015-08-20T21:16:13.381Z&amp;quot;),
+&amp;quot;myState&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;name&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 1,
+&amp;quot;stateStr&amp;quot; : &amp;quot;PRIMARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 77,
+&amp;quot;optime&amp;quot; : Timestamp(1440105350, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-20T21:15:50Z&amp;quot;),
+&amp;quot;electionTime&amp;quot; : Timestamp(1440105297, 1),
+&amp;quot;electionDate&amp;quot; : ISODate(&amp;quot;2015-08-20T21:14:57Z&amp;quot;),
+&amp;quot;configVersion&amp;quot; : 3,
+&amp;quot;self&amp;quot; : true
+},
+{
+&amp;quot;_id&amp;quot; : 1,
+&amp;quot;name&amp;quot; : &amp;quot;db2.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 5,
+&amp;quot;stateStr&amp;quot; : &amp;quot;STARTUP2&amp;quot;,
+&amp;quot;uptime&amp;quot; : 23,
+&amp;quot;optime&amp;quot; : Timestamp(0, 0),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;1970-01-01T00:00:00Z&amp;quot;),
+&amp;quot;lastHeartbeat&amp;quot; : ISODate(&amp;quot;2015-08-20T21:16:12.351Z&amp;quot;),
+&amp;quot;lastHeartbeatRecv&amp;quot; : ISODate(&amp;quot;2015-08 20T21:16:12.363Z&amp;quot;),
+&amp;quot;pingMs&amp;quot; : 0,
+&amp;quot;syncingTo&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;configVersion&amp;quot; : 3
+}
+],
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre>
+&lt;p>Статус STARTUP2 означает, что новый член набора синхронизируется (выгружает данные) с мастером. так, как по умолчанию приоритет у новых серверов - 1, даже после окончания, даже случайно этот сервер не сможет стать мастером, что убережет нас от потери данных.&lt;/p>
+&lt;p>Дождавшись синхронизации (state у нового сервера должен будет изменится на SECONDARY) - добавляем еще один сервер по точно такой же схеме:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.add(&amp;quot;db3.cluster:27017&amp;quot;)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>И снова ждем состояния SECONDARY. Теперь можно снизить приоритет основного сервера, чтобы он стал равноправным членом кластера:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; cfg.members[0].priority = 1
+1
+replica1:PRIMARY&amp;gt; rs.reconfig(cfg)
+{ &amp;quot;ok&amp;quot; : 1 }
+&lt;/code>&lt;/pre>
+&lt;p>И теперь убедимся, что все ок:&lt;/p>
+&lt;pre>&lt;code>replica1:PRIMARY&amp;gt; rs.status()
+{
+&amp;quot;set&amp;quot; : &amp;quot;replica1&amp;quot;,
+&amp;quot;date&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:11.851Z&amp;quot;),
+&amp;quot;myState&amp;quot; : 1,
+&amp;quot;members&amp;quot; : [
+{
+&amp;quot;_id&amp;quot; : 0,
+&amp;quot;name&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 1,
+&amp;quot;stateStr&amp;quot; : &amp;quot;PRIMARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 46815,
+&amp;quot;optime&amp;quot; : Timestamp(1440152107, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:07Z&amp;quot;),
+&amp;quot;electionTime&amp;quot; : Timestamp(1440105297, 1),
+&amp;quot;electionDate&amp;quot; : ISODate(&amp;quot;2015-08-20T21:14:57Z&amp;quot;),
+&amp;quot;configVersion&amp;quot; : 4,
+&amp;quot;self&amp;quot; : true
+},
+{
+&amp;quot;_id&amp;quot; : 1,
+&amp;quot;name&amp;quot; : &amp;quot;db2.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 2,
+&amp;quot;stateStr&amp;quot; : &amp;quot;SECONDARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 46761,
+&amp;quot;optime&amp;quot; : Timestamp(1440152107, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:07Z&amp;quot;),
+&amp;quot;lastHeartbeat&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.856Z&amp;quot;),
+&amp;quot;lastHeartbeatRecv&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.997Z&amp;quot;),
+&amp;quot;pingMs&amp;quot; : 0,
+&amp;quot;syncingTo&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;configVersion&amp;quot; : 4
+},
+{
+&amp;quot;_id&amp;quot; : 2,
+&amp;quot;name&amp;quot; : &amp;quot;db3.cluster:27017&amp;quot;,
+&amp;quot;health&amp;quot; : 1,
+&amp;quot;state&amp;quot; : 2,
+&amp;quot;stateStr&amp;quot; : &amp;quot;SECONDARY&amp;quot;,
+&amp;quot;uptime&amp;quot; : 46550,
+&amp;quot;optime&amp;quot; : Timestamp(1440152107, 1),
+&amp;quot;optimeDate&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:07Z&amp;quot;),
+&amp;quot;lastHeartbeat&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.856Z&amp;quot;),
+&amp;quot;lastHeartbeatRecv&amp;quot; : ISODate(&amp;quot;2015-08-21T10:15:09.997Z&amp;quot;),
+&amp;quot;pingMs&amp;quot; : 0,
+&amp;quot;syncingTo&amp;quot; : &amp;quot;db1.cluster:27017&amp;quot;,
+&amp;quot;configVersion&amp;quot; : 4
+}
+],
+&amp;quot;ok&amp;quot; : 1
+}
+&lt;/code>&lt;/pre></description></item></channel></rss>

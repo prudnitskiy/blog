@@ -1,0 +1,175 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>Миграция на mongo replica set без потери данных - Инфраструктурный блог</title>
+<meta name=description content="По сути - это не статья, а, скорее, просто памятка, чтобы самому не забыть. MongoDB - популярный документо-ориентированный движок управления базой. Штатно он имеет две разных технологии кластеризации: репликационные наборы (replica set) и шардирование (shard). Разница проста - в случае реплики на всех узлах данные одинаковы и любой узел может выступать источником данных (внимание, mongodb не является CAP-полной базой, так что точность данных тут под большим вопросом!), что обеспечивает отказоустойчивость. В случае шардирования данные &ldquo;размазаны&rdquo; по всему набору шарда, но каждый сервер внутри шарда имеет только свои данные. За счет этого распределяется нагрузка (например, с трех узлов данные можно читать параллельно), но снижается надежность - упавший узел означает потерю части данных шарда. В данной статье будет описание, как переехать с единичной монги на репсет не потеряв при этом данные."><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">Миграция на mongo replica set без потери данных</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2015-09-06>2015-09-06</time></div><a class="post-hidden-url u-url" href=/ru/post/2015-09-06-mongo-shard/>/ru/post/2015-09-06-mongo-shard/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href=/ru/tags/mongo/>#Mongo</a></li><li><a href=/ru/tags/db/>#Db</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#инструкция>Инструкция</a></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>По сути - это не статья, а, скорее, просто памятка, чтобы самому не забыть. MongoDB - популярный документо-ориентированный движок управления базой. Штатно он имеет две разных технологии кластеризации: репликационные наборы (replica set) и шардирование (shard). Разница проста - в случае реплики на всех узлах данные одинаковы и любой узел может выступать источником данных (<strong>внимание, mongodb не является CAP-полной базой, так что точность данных тут под большим вопросом!</strong>), что обеспечивает отказоустойчивость. В случае шардирования данные &ldquo;размазаны&rdquo; по всему набору шарда, но каждый сервер внутри шарда имеет только свои данные. За счет этого распределяется нагрузка (например, с трех узлов данные можно читать параллельно), но снижается надежность - упавший узел означает потерю части данных шарда. В данной статье будет описание, как переехать с единичной монги на репсет не потеряв при этом данные.</p><p>Важной особенностью репсета является тот факт, что в нем всегда только один мастер, и запись можно производить только на мастер. Таким забавным способом mongo борется с потенциальными конфликтами конкурентной записи данных (задача, на самом деле, куда как непростая, Riak это ярко демонстрирует). В случае, если мастер умер - производятся выборы нового мастера. К слову, пока они идут - в репсет нельзя записать ничего, от слова совсем.</p><h2 id=инструкция><div><a href=#%d0%b8%d0%bd%d1%81%d1%82%d1%80%d1%83%d0%ba%d1%86%d0%b8%d1%8f>#
+</a>Инструкция</div></h2><p>Итак, у нас есть одна MongoDB, к которой подключено приложение и мы хотим перевести это приложение на работу с кластером. Авторы mongo рекомендуют иметь нечетное количество узлов в наборе для гарантии достижения кворума, то есть потребуется 3 сервера. В отличае от MySQL - управление выбором узлов для чтения и записи в монго возложено на драйвер (то есть - коннектор языка программирования к базе, а не на саму базу). Перед началом работ очень рекомендую, умеет ли ваш драйвер работать с репсетами. Первое, что нужно поменять - это в файле настроек указать IP адрес, на который mongo привязывается (она должна быть доступна по сети) и задать параметр replicationSet. Один инстанс mongo может одновременно находится только в одном replication set. Параметр - не динамический, mongo надо перезапустить для его применения. Вписываем в /etc/mongo:</p><pre><code>#имя replica set. Должно быть уникальным, но единым для всего набора
+replSet=replica1
+#bind_ip закомментирован - слушать на всех доступных адресах.
+#bind_ip=
+port=27017
+</code></pre><p>Перезапускаем mongo, подключаемся к консоли (команда mongo) и инициируем набор:</p><pre><code># service mongodb restart
+# mongo
+&gt; rs.initiate()
+{
+        &quot;info2&quot; : &quot;no configuration explicitly specified -- making one&quot;,
+        &quot;me&quot; : &quot;db1.cluser:27017&quot;,
+        &quot;ok&quot; : 1
+}
+</code></pre><p>Чтобы быть уверенными, что мастером останется именно тот сервер, с которого мы начинаем конфигурирование (и на котором храним данные, которые не хотим потерять) - повысим ему приоритет в наборе. Мастер выбирается по принципу - случайный из максимального доступного приоритета, приоритет 0 будет означать, что данный сервер стать мастером не сможет никогда.</p><pre><code>replica1:PRIMARY&gt; cfg = rs.conf()
+{
+        &quot;_id&quot; : &quot;replica1&quot;,
+        &quot;version&quot; : 1,
+        &quot;members&quot; : [
+                {
+                        &quot;_id&quot; : 0,
+                        &quot;host&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;arbiterOnly&quot; : false,
+                        &quot;buildIndexes&quot; : true,
+                        &quot;hidden&quot; : false,
+                        &quot;priority&quot; : 1,
+                        &quot;tags&quot; : {
+
+                        },
+                        &quot;slaveDelay&quot; : 0,
+                        &quot;votes&quot; : 1
+                }
+        ],
+        &quot;settings&quot; : {
+                &quot;chainingAllowed&quot; : true,
+                &quot;heartbeatTimeoutSecs&quot; : 10,
+                &quot;getLastErrorModes&quot; : {
+
+                },
+                &quot;getLastErrorDefaults&quot; : {
+                        &quot;w&quot; : 1,
+                        &quot;wtimeout&quot; : 0
+                }
+        }
+}
+replica1:PRIMARY&gt; cfg.members[0].priority = 100
+100
+replica1:PRIMARY&gt; rs.reconfig(cfg)
+{ &quot;ok&quot; : 1 }
+</code></pre><p>Проверим состояние нашей реплики:</p><pre><code>replica1:PRIMARY&gt; rs.status()
+{
+        &quot;set&quot; : &quot;replica1&quot;,
+        &quot;date&quot; : ISODate(&quot;2015-08-20T19:38:18.845Z&quot;),
+        &quot;myState&quot; : 1,
+        &quot;members&quot; : [
+                {
+                        &quot;_id&quot; : 0,
+                        &quot;name&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;health&quot; : 1,
+                        &quot;state&quot; : 1,
+                        &quot;stateStr&quot; : &quot;PRIMARY&quot;,
+                        &quot;uptime&quot; : 96,
+                        &quot;optime&quot; : Timestamp(1440099489, 1),
+                        &quot;optimeDate&quot; : ISODate(&quot;2015-08-20T19:38:09Z&quot;),
+                        &quot;electionTime&quot; : Timestamp(1440099465, 2),
+                        &quot;electionDate&quot; : ISODate(&quot;2015-08-20T19:37:45Z&quot;),
+                        &quot;configVersion&quot; : 2,
+                        &quot;self&quot; : true
+                }
+        ],
+        &quot;ok&quot; : 1
+}
+</code></pre><p>Все ок. Ставим новый (пустой) сервер с mongo, прописываем в настройках replica set, запускаем. Теперь надо новый сервер добавить в набор:</p><pre><code>replica1:PRIMARY&gt; rs.add(&quot;db2.cluster:27017&quot;)
+{ &quot;ok&quot; : 1 }
+</code></pre><p>Узлы кластера должны быть доступны друг другу по порту, на котором работает mongo (по умолчанию 27017). Если используются имена, а не IP-адреса - важно убедится в том, что они правильно определяются со всех машин. Сервера общаются асинхронно, все со всеми. Проверим состояние нашего набора:</p><pre><code>replica1:PRIMARY&gt; rs.status()
+{
+        &quot;set&quot; : &quot;replica1&quot;,
+        &quot;date&quot; : ISODate(&quot;2015-08-20T21:16:13.381Z&quot;),
+        &quot;myState&quot; : 1,
+        &quot;members&quot; : [
+                {
+                        &quot;_id&quot; : 0,
+                        &quot;name&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;health&quot; : 1,
+                        &quot;state&quot; : 1,
+                        &quot;stateStr&quot; : &quot;PRIMARY&quot;,
+                        &quot;uptime&quot; : 77,
+                        &quot;optime&quot; : Timestamp(1440105350, 1),
+                        &quot;optimeDate&quot; : ISODate(&quot;2015-08-20T21:15:50Z&quot;),
+                        &quot;electionTime&quot; : Timestamp(1440105297, 1),
+                        &quot;electionDate&quot; : ISODate(&quot;2015-08-20T21:14:57Z&quot;),
+                        &quot;configVersion&quot; : 3,
+                        &quot;self&quot; : true
+                },
+                {
+                        &quot;_id&quot; : 1,
+                        &quot;name&quot; : &quot;db2.cluster:27017&quot;,
+                        &quot;health&quot; : 1,
+                        &quot;state&quot; : 5,
+                        &quot;stateStr&quot; : &quot;STARTUP2&quot;,
+                        &quot;uptime&quot; : 23,
+                        &quot;optime&quot; : Timestamp(0, 0),
+                        &quot;optimeDate&quot; : ISODate(&quot;1970-01-01T00:00:00Z&quot;),
+                        &quot;lastHeartbeat&quot; : ISODate(&quot;2015-08-20T21:16:12.351Z&quot;),
+                        &quot;lastHeartbeatRecv&quot; : ISODate(&quot;2015-08 20T21:16:12.363Z&quot;),
+                        &quot;pingMs&quot; : 0,
+                        &quot;syncingTo&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;configVersion&quot; : 3
+                }
+        ],
+        &quot;ok&quot; : 1
+}
+</code></pre><p>Статус STARTUP2 означает, что новый член набора синхронизируется (выгружает данные) с мастером. так, как по умолчанию приоритет у новых серверов - 1, даже после окончания, даже случайно этот сервер не сможет стать мастером, что убережет нас от потери данных.</p><p>Дождавшись синхронизации (state у нового сервера должен будет изменится на SECONDARY) - добавляем еще один сервер по точно такой же схеме:</p><pre><code>replica1:PRIMARY&gt; rs.add(&quot;db3.cluster:27017&quot;)
+{ &quot;ok&quot; : 1 }
+</code></pre><p>И снова ждем состояния SECONDARY. Теперь можно снизить приоритет основного сервера, чтобы он стал равноправным членом кластера:</p><pre><code>replica1:PRIMARY&gt; cfg.members[0].priority = 1
+1
+replica1:PRIMARY&gt; rs.reconfig(cfg)
+{ &quot;ok&quot; : 1 }
+</code></pre><p>И теперь убедимся, что все ок:</p><pre><code>replica1:PRIMARY&gt; rs.status()
+{
+        &quot;set&quot; : &quot;replica1&quot;,
+        &quot;date&quot; : ISODate(&quot;2015-08-21T10:15:11.851Z&quot;),
+        &quot;myState&quot; : 1,
+        &quot;members&quot; : [
+                {
+                        &quot;_id&quot; : 0,
+                        &quot;name&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;health&quot; : 1,
+                        &quot;state&quot; : 1,
+                        &quot;stateStr&quot; : &quot;PRIMARY&quot;,
+                        &quot;uptime&quot; : 46815,
+                        &quot;optime&quot; : Timestamp(1440152107, 1),
+                        &quot;optimeDate&quot; : ISODate(&quot;2015-08-21T10:15:07Z&quot;),
+                        &quot;electionTime&quot; : Timestamp(1440105297, 1),
+                        &quot;electionDate&quot; : ISODate(&quot;2015-08-20T21:14:57Z&quot;),
+                        &quot;configVersion&quot; : 4,
+                        &quot;self&quot; : true
+                },
+                {
+                        &quot;_id&quot; : 1,
+                        &quot;name&quot; : &quot;db2.cluster:27017&quot;,
+                        &quot;health&quot; : 1,
+                        &quot;state&quot; : 2,
+                        &quot;stateStr&quot; : &quot;SECONDARY&quot;,
+                        &quot;uptime&quot; : 46761,
+                        &quot;optime&quot; : Timestamp(1440152107, 1),
+                        &quot;optimeDate&quot; : ISODate(&quot;2015-08-21T10:15:07Z&quot;),
+                        &quot;lastHeartbeat&quot; : ISODate(&quot;2015-08-21T10:15:09.856Z&quot;),
+                        &quot;lastHeartbeatRecv&quot; : ISODate(&quot;2015-08-21T10:15:09.997Z&quot;),
+                        &quot;pingMs&quot; : 0,
+                        &quot;syncingTo&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;configVersion&quot; : 4
+                },
+                {
+                        &quot;_id&quot; : 2,
+                        &quot;name&quot; : &quot;db3.cluster:27017&quot;,
+                        &quot;health&quot; : 1,
+                        &quot;state&quot; : 2,
+                        &quot;stateStr&quot; : &quot;SECONDARY&quot;,
+                        &quot;uptime&quot; : 46550,
+                        &quot;optime&quot; : Timestamp(1440152107, 1),
+                        &quot;optimeDate&quot; : ISODate(&quot;2015-08-21T10:15:07Z&quot;),
+                        &quot;lastHeartbeat&quot; : ISODate(&quot;2015-08-21T10:15:09.856Z&quot;),
+                        &quot;lastHeartbeatRecv&quot; : ISODate(&quot;2015-08-21T10:15:09.997Z&quot;),
+                        &quot;pingMs&quot; : 0,
+                        &quot;syncingTo&quot; : &quot;db1.cluster:27017&quot;,
+                        &quot;configVersion&quot; : 4
+                }
+        ],
+        &quot;ok&quot; : 1
+}
+</code></pre></div></article><h3 class="read-next-title noselect">Читать далее</h3><ul class="read-next-posts noselect"><li><a href=/ru/post/2015-05-01-xtradb-quickstart/>Быстрая миграция MySQL на failover cluster</a></li></ul><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2015-11-26-pinba/>Отслеживаем PHP с помощью PINBA на debian</a></div><div class="right pagination-item"><a href=/ru/post/2015-05-01-xtradb-quickstart/>Быстрая миграция MySQL на failover cluster</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>

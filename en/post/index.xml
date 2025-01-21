@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on SRE Blog</title><link>/en/post/</link><description>SRE Blog (Posts)</description><generator>Hugo -- gohugo.io</generator><language>en-US</language><lastBuildDate>Mon, 20 Jan 2025 20:08:00 +0000</lastBuildDate><atom:link href="/en/post/index.xml" rel="self" type="application/rss+xml"/><item><title>Reasons to write in English</title><link>/en/post/2024-05-12-switching-to-english/</link><pubDate>Mon, 20 Jan 2025 20:08:00 +0000</pubDate><guid>/en/post/2024-05-12-switching-to-english/</guid><description>&lt;p>I started this blog a long time ago and of course, I started to write it in my native language. I did not even think I would work with colleagues, not from my country. As I more and more work with international companies I decided to switch my blog to a bilingual model. The plan is simple:&lt;/p>
+&lt;ul>
+&lt;li>New articles would be published in both languages&lt;/li>
+&lt;li>Old articles written in Russian would stay as it is&lt;/li>
+&lt;li>Later I may translate some of them if they are not completely obsolete&lt;/li>
+&lt;li>To keep data accessible I create rewrite rules so Google (hopefully) will not downrate my SERP position&lt;/li>
+&lt;/ul>
+&lt;p>Not sure how it would work but let&amp;rsquo;s see.&lt;/p></description></item></channel></rss>

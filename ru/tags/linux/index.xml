@@ -1,0 +1,1337 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Linux on Инфраструктурный блог</title><link>/ru/tags/linux/</link><description>Инфраструктурный блог (Linux)</description><generator>Hugo -- gohugo.io</generator><language>ru-ru</language><lastBuildDate>Thu, 02 Aug 2018 09:00:00 +0000</lastBuildDate><atom:link href="/ru/tags/linux/index.xml" rel="self" type="application/rss+xml"/><item><title>Yubikey + GPG – быстрый старт</title><link>/ru/post/2018-08-02-yubikey-gpg/</link><pubDate>Thu, 02 Aug 2018 09:00:00 +0000</pubDate><guid>/ru/post/2018-08-02-yubikey-gpg/</guid><description>&lt;p>Требования к безопасности непрерывно растут, так как взломщики постоянно эволюционируют и все лучше умеют красть данные. Доступ к данным становится все более ценным - это могут быть живые деньги, секретная информация или доступ в инфраструктуру, интеллектуальную собственность или пользовательские данные (которые эта инфраструктура обрабатывает). А это – очень большие деньги. А иногда и вовсе вопрос жизни и смерти целой структуры.&lt;/p>
+&lt;p>Простой системы логин/пароль уже недостаточно, чтобы обеспечить надежную защиту, и даже система с ассиметричными ключами имеет уязвимости:&lt;/p>
+&lt;ul>
+&lt;li>ключ можно выкрасть. Он будет шифрован, но пароль можно подобрать. Это медленный процесс, но взломщику может повезти, особенно, если у него есть какая-то информация об особенностях пароля. Например, он знает его точную длинну.&lt;/li>
+&lt;li>Для того, чтобы ключ можно было использовать - он должен быть расшифрован. Обычно расшифрованый ключ хранится в оперативной памяти, но при наличии доступа к памяти его можно украсть. Атака сложная, но если ключ по-настоящиему ценный - реальная.&lt;/li>
+&lt;/ul>
+&lt;p>Для того, чтобы сделать работу с шифрованием надежной и безопасной – были придуманы аппаратные носители ключей. Концепция выглядит просто – шифровальный ключ не покидает аппаратного токена (обычно это смарт-карта с чипом), и если операционной системе требуется произвести какое-то действие с шифрованием (зашифровка, расшифровка, подпись) – данные передаются в аппаратный ключ. Ключ выполняет действия (если проситель имеет право на такие действия) и выдает результат.&lt;/p>
+&lt;p>В этой статье я расскажу, как настроить Yubikey 4 для работы с GPG и использовать его для стандартных действий (шифрование, расшифровка, авторизация по SSH).&lt;/p>
+&lt;p>Yubikey - это именно такой ключ. Это простой, удобный и понятный для начинающего ключ-смарткарта в форм-факторе USB-флешки. Классический Yubikey 4 выпускается в двух форм-факторах – обычная &amp;ldquo;полноразмерная&amp;rdquo; флешка или &amp;ldquo;нано-ключ&amp;rdquo; - вставленный в комп наноключ практически не выступает из порта, что удобно, если ключ подключен постоянно и не должен изыматься. Yubikey 4 выпускается как под USB2 Type A, так и под USB3 Type C порт, что удобно для обладателей новых ноутбуков (macbook pro touch bar). Так же компания Yubiko выпускает Yubkey Neo - Yubkey с поддержкой NFC (для смартфонов), но со сниженным максимальным размером ключа (2048 бит вместо 4096 для Yubikey 4).&lt;/p>
+&lt;p>Кроме GPG, Yubikey может работать как стандартная smart-карта и генерировать одноразовые пароли (TOTP/HOTP). В этой статье будет описана только настройка под GPG.&lt;/p>
+&lt;h2 id="предварительные-настройки" >
+&lt;div>
+&lt;a href="#%d0%bf%d1%80%d0%b5%d0%b4%d0%b2%d0%b0%d1%80%d0%b8%d1%82%d0%b5%d0%bb%d1%8c%d0%bd%d1%8b%d0%b5-%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b8">
+#
+&lt;/a>
+Предварительные настройки
+&lt;/div>
+&lt;/h2>
+&lt;p>Для того, чтобы использовать gpg для Yubikey - потребуется сам gpg. Пользователи MacOS могут использовать &lt;a href="https://gpgtools.org/">MacGPG&lt;/a>. Пользователям Linux ничего делать не надо - gpg входит в поставку ОС. Чтобы gpg создал нужные ему папки - запускаем gpgtool. Он предложит создать новый приватный ключ - игнорируем, просто закрываем программу.&lt;/p>
+&lt;p>После установки пакета надо добавить в &lt;code>~/.bashrc&lt;/code> следующие строки:&lt;/p>
+&lt;pre>&lt;code>export GPG_TTY=&amp;quot;$(tty)&amp;quot;
+export SSH_AUTH_SOCK=$(/usr/local/MacGPG2/bin/gpgconf --list-dirs agent-ssh-socket)
+if ! pgrep gpg-agent &amp;amp;&amp;gt; /dev/null; then
+echo &amp;quot;gpg-agent not running&amp;quot;
+/usr/local/MacGPG2/bin/gpg-agent --homedir /Users/YOUR_LOGIN/.gnupg --daemon
+fi
+&lt;/code>&lt;/pre>
+&lt;p>Обратите внимание, что вам нужно поменять логин на свой&lt;/p>
+&lt;p>Также надо указать pinentry и включить поддежку ssh-agent в файле &lt;code>~/.gnupg/gpg-agent.conf&lt;/code>:&lt;/p>
+&lt;pre>&lt;code>default-cache-ttl 600
+max-cache-ttl 7200
+pinentry-program /usr/local/MacGPG2/libexec/pinentry-mac.app/Contents/MacOS/pinentry-mac
+enable-ssh-support
+&lt;/code>&lt;/pre>
+&lt;p>Теперь можно подключить yubikey. Проверим, что карта подключилась и определилась:&lt;/p>
+&lt;pre>&lt;code>tungsten&amp;gt; gpg --card-edit
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+Signature key ....: [none]
+Encryption key....: [none]
+Authentication key: [none]
+General key info..: [none]
+gpg/card&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Отлично, карта есть, можно настраивать. Первое, что нужно поменять - pin-коды карты. У карты два pin-кода:&lt;/p>
+&lt;ul>
+&lt;li>User PIN - отвечает за проверку авторизации самой карты. Его нужно ввести, чтобы использовать ключ (зашифровать, расшифровать данные или авторизоваться)&lt;/li>
+&lt;li>Admin PIN - отвечает за настройку карты. Он позволяет управлять содержимым карты или ее настройками.&lt;/li>
+&lt;/ul>
+&lt;p>Не смотря на названия, PIN-коды - это полноценные пароли длинной до 127 символов включительно. Пароли имеют ограничения - там нельзя использовать символы национальных алфавитов и спецсимволы. То есть – можно только английские буквы и цифры. Кроме того, Admin PIN должен быть не менее 8 символов длинной. Yubikey никак не предупредит об этом, но pin короче 8 символов просто не запишется. При смене PIN-кода спросят старый PIN. PIN-коды по умолчанию:&lt;/p>
+&lt;ul>
+&lt;li>User PIN: 123456&lt;/li>
+&lt;li>Admin PIN: 12345678&lt;/li>
+&lt;/ul>
+&lt;p>Переключимся в админ-режим и поменяем пины:&lt;/p>
+&lt;pre>&lt;code>gpg/card&amp;gt; admin
+Admin commands are allowed
+gpg/card&amp;gt; passwd
+gpg: OpenPGP card no. D2760001240102010006070171690000 detected
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+Your selection? 1
+PIN changed.
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+Your selection? 3
+PIN changed.
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+Your selection? q
+&lt;/code>&lt;/pre>
+&lt;p>Небольшая ремарка про PIN-ы. Карта считает все неуспешные попытки использования PIN-кода. Если ввести PIN-код неправильно несколько раз подряд – он блокируется. User PIN можно разблокировать с помощью Admin PIN. Заблокированный Admin PIN разблокировать нельзя никак. Карту можно полностью сбросить командой &lt;code>factory-reset&lt;/code> - при этом все ее содержимое будет безвозвратно уничтожено. Для &lt;code>factory-reset&lt;/code> никакие пин-коды не нужны. Счетчик неуспешных попыток сбрасывается, если ввести PIN правильно.&lt;/p>
+&lt;p>Теперь рекомендуется персонализировать карту - внести в нее информацию о себе. Это мало на что влияет, но имя будет отображаться в диалоге ввода PIN (что облегчает идентификацию карты). Кроме того, общую информацию о карте можно прочитать без кода – это может помочь, если вы потеряете карту. Важный параметр - url, это адрес, с которого можно будет скачать ваш &lt;strong>публичный&lt;/strong> ключ:&lt;/p>
+&lt;pre>&lt;code>gpg/card&amp;gt; name
+Cardholder's surname: Rudnitskiy
+Cardholder's given name: Paul
+gpg/card&amp;gt; sex
+Sex ((M)ale, (F)emale or space): M
+gpg/card&amp;gt; lang
+Language preferences: en
+gpg/card&amp;gt; login
+Login data (account name): logan
+gpg/card&amp;gt; url
+URL to retrieve public key: https://prudnitskiy.pro/gpg.pub
+&lt;/code>&lt;/pre>
+&lt;p>Карта готова и теперь можно экспортировать ключ на нее или создать ключ прямо на ней. Если у вас нет ключа - я рекомендую прямо на карте его и создавать. Если ключ уже есть – ниже есть раздел о том, как перенести ключ на карту&lt;/p>
+&lt;h2 id="генерация-ключа-на-yubikey" >
+&lt;div>
+&lt;a href="#%d0%b3%d0%b5%d0%bd%d0%b5%d1%80%d0%b0%d1%86%d0%b8%d1%8f-%d0%ba%d0%bb%d1%8e%d1%87%d0%b0-%d0%bd%d0%b0-yubikey">
+#
+&lt;/a>
+Генерация ключа на Yubikey
+&lt;/div>
+&lt;/h2>
+&lt;p>Перед тем, как создавать ключ - я рекомендую поменять его размер. По умолчанию Yubikey создает один мастер-ключ и два сабключа:&lt;/p>
+&lt;ul>
+&lt;li>Master + Certify&lt;/li>
+&lt;li>SUB1 - Encryption&lt;/li>
+&lt;li>SUB2 – Authentication&lt;/li>
+&lt;/ul>
+&lt;p>Все три ключа по умолчанию - RSA2048. RSA4096 выглядит намного интереснее. Поменяем:&lt;/p>
+&lt;pre>&lt;code>gpg/card&amp;gt; key-attr
+Changing card key attribute for: Signature key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+Changing card key attribute for: Encryption key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+Changing card key attribute for: Authentication key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+gpg: error changing key attribute for key 3: Bad PIN
+Changing card key attribute for: Authentication key
+Please select what kind of key you want:
+(1) RSA
+(2) ECC
+Your selection? 1
+What keysize do you want? (2048) 4096
+The card will now be re-configured to generate a key of 4096 bits
+&lt;/code>&lt;/pre>
+&lt;p>Внимание! Если у вас Yubikey Neo - вы &lt;strong>не можете использовать 4096-битные ключи.&lt;/strong>&lt;/p>
+&lt;p>Теперь (наконец-то!) приступим к созданию ключей. Вопрос политики устаревания ключей в целом довольно дискуссионный, и тут я не могу ничего порекомендовать. В данном примере я создам мастер-ключ с бесконечным сроком жизни, а саб-ключи мы потом отредактируем и они будут жить по 5 лет. В процессе создания ключа GPG спросит пароль для шифрования off-card резервной копии. Она вам потребуется, если вы потеряете физический ключ. Off-card экспортируется только subkey для шифрования (capability - E). Остальные sub-ключи и мастер-ключ останутся на карте и вынуть оттуда их нельзя. Процесс генерации ключа зависит от выбранного размера ключа (4096 бит будет генерироваться дольше, чем 2048):&lt;/p>
+&lt;pre>&lt;code>gpg/card&amp;gt; generate
+Make off-card backup of encryption key? (Y/n) y
+Please specify how long the key should be valid.
+0 = key does not expire
+&amp;lt;n&amp;gt; = key expires in n days
+&amp;lt;n&amp;gt;w = key expires in n weeks
+&amp;lt;n&amp;gt;m = key expires in n months
+&amp;lt;n&amp;gt;y = key expires in n years
+Key is valid for? (0) 0
+Key does not expire at all
+Is this correct? (y/N) y
+GnuPG needs to construct a user ID to identify your key.
+Real name: Paul Rudnitskiy
+Email address: me@prudnitskiy.pro
+Comment: YBKey
+You selected this USER-ID:
+&amp;quot;Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;&amp;quot;
+Change (N)ame, (C)omment, (E)mail or (O)kay/(Q)uit? O
+[...]
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+gpg: Note: backup of card key saved to '/Users/logan/.gnupg/sk_8E0418955A55C1A8.gpg'
+gpg: key 9ECF9961A551A45B marked as ultimately trusted
+gpg: revocation certificate stored as '/Users/logan/.gnupg/openpgp-revocs.d/707C3210B50A430B555DD6AC9ECF9961A551A45B.rev'
+public and secret key created and signed.
+&lt;/code>&lt;/pre>
+&lt;p>Ключ готов. Резервную копию забираем из &lt;code>/Users/logan/.gnupg/sk_8E0418955A55C1A8.gpg&lt;/code> (у вас место будет другим) и прячем в надежное место. Пароль резервной копии тоже прячем в надежное место, но &lt;em>другое&lt;/em>. Обязательно удалите резервную копию с той машины, где вы работаете с ключом.&lt;/p>
+&lt;p>Проверим, что ключ сгенерировался:&lt;/p>
+&lt;pre>&lt;code>gpg/card&amp;gt; list
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: Paul Rudnitskiy
+Language prefs ...: en
+Sex ..............: male
+URL of public key : [not set]
+Login data .......: logan
+Signature PIN ....: not forced
+Key attributes ...: rsa4096 rsa4096 rsa4096
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 4
+Signature key ....: 707C 3210 B50A 430B 555D D6AC 9ECF 9961 A551 A45B
+created ....: 2018-08-07 07:58:18
+Encryption key....: 062A ABF7 6FB0 8EF4 0E97 4B47 8E04 1895 5A55 C1A8
+created ....: 2018-08-07 07:58:18
+Authentication key: 6A41 D75C 2B56 41FC A7F4 8DBE CC02 AF33 8EE7 E338
+created ....: 2018-08-07 07:58:18
+General key info..: pub rsa4096/9ECF9961A551A45B 2018-08-07 Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+sec&amp;gt; rsa4096/9ECF9961A551A45B created: 2018-08-07 expires: never
+card-no: 0006 07017169
+ssb&amp;gt; rsa4096/CC02AF338EE7E338 created: 2018-08-07 expires: never
+card-no: 0006 07017169
+ssb&amp;gt; rsa4096/8E0418955A55C1A8 created: 2018-08-07 expires: never
+card-no: 0006 07017169
+&lt;/code>&lt;/pre>
+&lt;p>Все в порядке, уходим:&lt;/p>
+&lt;pre>&lt;code>gpg/card&amp;gt; quit
+&lt;/code>&lt;/pre>
+&lt;p>Теперь зададим срок жизни сабключей. Он нужен для того, чтобы если по какой-то причине вы потеряли доступ к копии ключа – им нельзя было пользовать после истечения срока жизни ключа. Для этого надо выйти из режима редактирования карты и отредактировать ключ. Редактивровать мы будем SEC-ключ, в этом примере это &lt;em>9ECF9961A551A45B&lt;/em>:&lt;/p>
+&lt;pre>&lt;code>tungsten&amp;gt; gpg --edit-key 9ECF9961A551A45B
+gpg (GnuPG/MacGPG2) 2.2.8; Copyright (C) 2018 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Secret key is available.
+gpg: checking the trustdb
+gpg: marginals needed: 3 completes needed: 1 trust model: pgp
+gpg: depth: 0 valid: 5 signed: 0 trust: 0-, 0q, 0n, 0m, 0f, 5u
+gpg: next trustdb check due at 2024-05-30
+sec rsa4096/9ECF9961A551A45B
+created: 2018-08-07 expires: never usage: SC
+card-no: 0006 07017169
+trust: ultimate validity: ultimate
+ssb rsa4096/CC02AF338EE7E338
+created: 2018-08-07 expires: never usage: A
+card-no: 0006 07017169
+ssb rsa4096/8E0418955A55C1A8
+created: 2018-08-07 expires: never usage: E
+card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Команда &lt;code>key NUM&lt;/code> выберет ключ для редактирования. Чтобы снять выбор - нужно ввести ее повторно:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; key 1
+sec rsa4096/9ECF9961A551A45B
+created: 2018-08-07 expires: never usage: SC
+card-no: 0006 07017169
+trust: ultimate validity: ultimate
+ssb* rsa4096/CC02AF338EE7E338
+created: 2018-08-07 expires: never usage: A
+card-no: 0006 07017169
+ssb rsa4096/8E0418955A55C1A8
+created: 2018-08-07 expires: never usage: E
+card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Меняем срок жизни:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; expire
+Changing expiration time for a subkey.
+Please specify how long the key should be valid.
+0 = key does not expire
+&amp;lt;n&amp;gt; = key expires in n days
+&amp;lt;n&amp;gt;w = key expires in n weeks
+&amp;lt;n&amp;gt;m = key expires in n months
+&amp;lt;n&amp;gt;y = key expires in n years
+Key is valid for? (0) 5y
+Key expires at Sun Aug 6 11:01:18 2023 MSK
+Is this correct? (y/N) y
+sec rsa4096/9ECF9961A551A45B
+created: 2018-08-07 expires: never usage: SC
+card-no: 0006 07017169
+trust: ultimate validity: ultimate
+ssb* rsa4096/CC02AF338EE7E338
+created: 2018-08-07 expires: 2023-08-06 usage: A
+card-no: 0006 07017169
+ssb rsa4096/8E0418955A55C1A8
+created: 2018-08-07 expires: never usage: E
+card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Снимаем выделение первого ключа и меняем второй по аналогии:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; key 1
+sec rsa4096/9ECF9961A551A45B
+created: 2018-08-07 expires: never usage: SC
+card-no: 0006 07017169
+trust: ultimate validity: ultimate
+ssb rsa4096/CC02AF338EE7E338
+created: 2018-08-07 expires: 2023-08-06 usage: A
+card-no: 0006 07017169
+ssb rsa4096/8E0418955A55C1A8
+created: 2018-08-07 expires: never usage: E
+card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; key 2
+sec rsa4096/9ECF9961A551A45B
+created: 2018-08-07 expires: never usage: SC
+card-no: 0006 07017169
+trust: ultimate validity: ultimate
+ssb rsa4096/CC02AF338EE7E338
+created: 2018-08-07 expires: 2023-08-06 usage: A
+card-no: 0006 07017169
+ssb* rsa4096/8E0418955A55C1A8
+created: 2018-08-07 expires: never usage: E
+card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; expire
+Changing expiration time for a subkey.
+Please specify how long the key should be valid.
+0 = key does not expire
+&amp;lt;n&amp;gt; = key expires in n days
+&amp;lt;n&amp;gt;w = key expires in n weeks
+&amp;lt;n&amp;gt;m = key expires in n months
+&amp;lt;n&amp;gt;y = key expires in n years
+Key is valid for? (0) 5y
+Key expires at Sun Aug 6 11:01:29 2023 MSK
+Is this correct? (y/N) y
+sec rsa4096/9ECF9961A551A45B
+created: 2018-08-07 expires: never usage: SC
+card-no: 0006 07017169
+trust: ultimate validity: ultimate
+ssb rsa4096/CC02AF338EE7E338
+created: 2018-08-07 expires: 2023-08-06 usage: A
+card-no: 0006 07017169
+ssb* rsa4096/8E0418955A55C1A8
+created: 2018-08-07 expires: 2023-08-06 usage: E
+card-no: 0006 07017169
+[ultimate] (1). Paul Rudnitskiy (YBKey) &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; save
+&lt;/code>&lt;/pre>
+&lt;p>Ключ на карте готов к использованию&lt;/p>
+&lt;h2 id="перенос-существующего-ключа-на-yubikey" >
+&lt;div>
+&lt;a href="#%d0%bf%d0%b5%d1%80%d0%b5%d0%bd%d0%be%d1%81-%d1%81%d1%83%d1%89%d0%b5%d1%81%d1%82%d0%b2%d1%83%d1%8e%d1%89%d0%b5%d0%b3%d0%be-%d0%ba%d0%bb%d1%8e%d1%87%d0%b0-%d0%bd%d0%b0-yubikey">
+#
+&lt;/a>
+Перенос существующего ключа на Yubikey
+&lt;/div>
+&lt;/h2>
+&lt;p>Этот раздел вам нужен, если у вас уже есть gpg-ключ и вы хотите его перенести на карту. &lt;em>Вы не сможете экспортировать приватный ключ с карты yubikey.&lt;/em>&lt;/p>
+&lt;p>После того, как карта сконфигурирована, открываем режим редактирования ключа:&lt;/p>
+&lt;pre>&lt;code>tungsten&amp;gt; gpg --expert --edit-key 21F7B93A71CDF86D649D8D0661BEBC7784A83F16
+gpg (GnuPG/MacGPG2) 2.2.8; Copyright (C) 2018 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Secret key is available.
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Ключи переносятся командой &lt;code>keytocard&lt;/code>. На Yubikey есть только три слота под три типа (capability) ключа:&lt;/p>
+&lt;ul>
+&lt;li>Encryption key&lt;/li>
+&lt;li>Authentication key&lt;/li>
+&lt;li>Sign key&lt;/li>
+&lt;/ul>
+&lt;p>Если у вас больше ключей - то вы должны решить, какие ключи вы будете переносить. В примере выше - 2 sign ключа, по этому мастер мы переносить не будем - на yubikey уедут только три сабключа. Перед началом переноса ключей рекомендую сделать backup и положить его в безопасное место.&lt;/p>
+&lt;p>Выберем ключ для переноса:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; key 1
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb* rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Перенесем его:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; keytocard
+Please select where to store the key:
+(2) Encryption key
+Your selection? 2
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb* rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>После переноса снимем выделение с него:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; key 1
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>По аналогии перенесем 2 и 3 ключи:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; key 2
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb* rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; keytocard
+Please select where to store the key:
+(3) Authentication key
+Your selection? 3
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb* rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; key 2
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; key 3
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb* rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+gpg&amp;gt; keytocard
+Please select where to store the key:
+(1) Signature key
+(3) Authentication key
+Your selection? 1
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb* rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[ultimate] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+&lt;/code>&lt;/pre>
+&lt;p>Все перенесено, сохраним и проверим:&lt;/p>
+&lt;pre>&lt;code>gpg&amp;gt; save
+tungsten&amp;gt; gpg --card-edit
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+Signature key ....: 21F7 B93A 71CD F86D 649D 8D06 61BE BC77 84A8 3F16
+created ....: 2018-08-08 14:51:38
+Encryption key....: 7A30 6771 BB74 204F 54D5 8A61 1200 D2BB 8DFB 614C
+created ....: 2018-08-08 14:51:38
+Authentication key: DDB0 62D0 1BB4 4D01 3819 E450 0BC3 AD72 9F05 D736
+created ....: 2018-08-08 14:54:07
+General key info..: pub rsa2048/61BEBC7784A83F16 2018-08-08 Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+sec# rsa2048/61BEBC7784A83F16 created: 2018-08-08 expires: 2022-08-08
+ssb&amp;gt; rsa2048/1200D2BB8DFB614C created: 2018-08-08 expires: 2022-08-08
+card-no: 0006 07017169
+ssb&amp;gt; rsa2048/0BC3AD729F05D736 created: 2018-08-08 expires: 2022-08-07
+card-no: 0006 07017169
+ssb&amp;gt; rsa2048/FAF7641B57B14FF2 created: 2018-08-08 expires: 2022-08-07
+card-no: 0006 07017169
+&lt;/code>&lt;/pre>
+&lt;p>Обратите внимание, что мастер-ключ не лежит на карте – он пока еще хранится на компьютере (и внутри бэкапа). Имея доступ к мастер-ключу - можно редактировать срок жизни sub-ключа или отозвать (revoke) его. Очень важно хранить мастер в безопасности. Для этого мы вынесем его в холодное хранилище:&lt;/p>
+&lt;ul>
+&lt;li>у вас должна быть резервная копия мастер-ключа&lt;/li>
+&lt;li>экспортируем публичный ключ&lt;/li>
+&lt;li>удалим все &lt;em>секретные&lt;/em> ключи с компьютера&lt;/li>
+&lt;li>импортируем обратно публичный ключ, сделав его доверенным&lt;/li>
+&lt;/ul>
+&lt;p>Экспортируем публичный ключ:&lt;/p>
+&lt;pre>&lt;code>gpg --export --armour 61BEBC7784A83F16 &amp;gt; pub.asc
+&lt;/code>&lt;/pre>
+&lt;p>Уберем из компьютера yubikey и удалим приватный ключ:&lt;/p>
+&lt;pre>&lt;code>gpg --edit-key 61BEBC7784A83F16
+gpg&amp;gt; delkey
+&lt;/code>&lt;/pre>
+&lt;p>импортируем публичный ключ обратно:&lt;/p>
+&lt;pre>&lt;code>gpg --import &amp;lt; pub.asc
+&lt;/code>&lt;/pre>
+&lt;p>повысим ему уровень доверия&lt;/p>
+&lt;pre>&lt;code>gpg --edit-key 61BEBC7784A83F16
+gpg&amp;gt; trust
+sec rsa2048/61BEBC7784A83F16
+created: 2018-08-08 expires: 2022-08-08 usage: SC
+trust: ultimate validity: ultimate
+ssb rsa2048/1200D2BB8DFB614C
+created: 2018-08-08 expires: 2022-08-08 usage: E
+ssb rsa2048/0BC3AD729F05D736
+created: 2018-08-08 expires: 2022-08-07 usage: A
+ssb rsa2048/FAF7641B57B14FF2
+created: 2018-08-08 expires: 2022-08-07 usage: S
+[none] (1). Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+Please decide how far you trust this user to correctly verify other users' keys
+(by looking at passports, checking fingerprints from different sources, etc.)
+1 = I don't know or won't say
+2 = I do NOT trust
+3 = I trust marginally
+4 = I trust fully
+5 = I trust ultimately
+m = back to the main menu
+Your decision? 5
+Do you really want to set this key to ultimate trust? (y/N) y
+&lt;/code>&lt;/pre>
+&lt;p>Теперь проверим, что ключи на карте видны:&lt;/p>
+&lt;pre>&lt;code>tungsten&amp;gt; gpg --card-edit
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006070171690000
+Version ..........: 2.1
+Manufacturer .....: Yubico
+Serial number ....: 07017169
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+Signature key ....: 21F7 B93A 71CD F86D 649D 8D06 61BE BC77 84A8 3F16
+created ....: 2018-08-08 14:51:38
+Encryption key....: 7A30 6771 BB74 204F 54D5 8A61 1200 D2BB 8DFB 614C
+created ....: 2018-08-08 14:51:38
+Authentication key: DDB0 62D0 1BB4 4D01 3819 E450 0BC3 AD72 9F05 D736
+created ....: 2018-08-08 14:54:07
+General key info..: pub rsa2048/61BEBC7784A83F16 2018-08-08 Paul Rudnitskiy &amp;lt;me@prudnitskiy.pro&amp;gt;
+sec# rsa2048/61BEBC7784A83F16 created: 2018-08-08 expires: 2022-08-08
+ssb&amp;gt; rsa2048/1200D2BB8DFB614C created: 2018-08-08 expires: 2022-08-08
+card-no: 0006 07017169
+ssb&amp;gt; rsa2048/0BC3AD729F05D736 created: 2018-08-08 expires: 2022-08-07
+card-no: 0006 07017169
+ssb&amp;gt; rsa2048/FAF7641B57B14FF2 created: 2018-08-08 expires: 2022-08-07
+card-no: 0006 07017169
+&lt;/code>&lt;/pre>
+&lt;p>Отлично, ключи видны, можно пользоваться.&lt;/p>
+&lt;h2 id="выводы" >
+&lt;div>
+&lt;a href="#%d0%b2%d1%8b%d0%b2%d0%be%d0%b4%d1%8b">
+#
+&lt;/a>
+Выводы
+&lt;/div>
+&lt;/h2>
+&lt;p>Использование gpg-ключа с карты практически ничем не отличается от использования ключа без карты. Для авторизации по ssh с использованием ключа вам потребуется RSA pubkey. Он создается от gpg subkey A (Auth capability). Если вы меняете auth-ключ – ssh-ключ поменяется тоже, имейте ввиду. Чтобы его получить - достаточно набрать команду &lt;code>ssh-add -L&lt;/code>&lt;/p>
+&lt;pre>&lt;code>ssh-add -L
+ssh-rsa AAAAB***************************** cardno:00007017169
+&lt;/code>&lt;/pre>
+&lt;p>Комментарий cardno подскажет, что ключ был импортирован из yubikey&lt;/p>
+&lt;p>На каждую попытку использовать ключ yubikey будет требовать ввод User PIN. Yubikey весьма безопасен и надежен, если не делать глупых ошибок в его использовании и применении. И разумеется - нельзя забывать о бэкапах.&lt;/p></description></item><item><title>Systemd – очень быстрый старт</title><link>/ru/post/2018-01-24-systemd-quickstart/</link><pubDate>Wed, 24 Jan 2018 21:00:00 +0000</pubDate><guid>/ru/post/2018-01-24-systemd-quickstart/</guid><description>&lt;p>При работе в операционной системе нужно постоянно запускать разные программы. Следить за их состоянием. Перезапускать упавшее. Существует целый пласт утилит, который решает эту задачу (от простейшего init.d до навороченного svc). Сейчас в Linux стандартом де-факто стал systemd – его используют все современные дистрибутивы. Это – очень короткое и очень простое введение в systemd. Минимум текста – максимум пользы.&lt;/p>
+&lt;p>SystemD – это менеджер загрузки. Он получает управление от ядра при старте операционной системы (init), запускает разные сервисы и следит за их состоянием (например – перезапускает упавшие). Идеолог – Леннар Поттеринг из RedHat. Systemd очень своеобразная штука, умеет она довольно много и устройство у нее довольно сложное. Systemd заслуженно любят за мощный и гибкий функционал – это здорово облегчает жизнь разработчика и админа. Systemd заслуженно ненавидят за тягу к изобретению уже реализованных в операционной системе вещей и спорное поведение в некоторых вопросах безопасности.&lt;/p>
+&lt;p>Эта статья – краткое практическое руководство. Теории тут – минимум. Если вас интересует устройство systemd – вам в &lt;a href="https://www.freedesktop.org/software/systemd/man/systemd.unit.html">официальное руководство&lt;/a>.&lt;/p>
+&lt;h2 id="введение-и-терминология" >
+&lt;div>
+&lt;a href="#%d0%b2%d0%b2%d0%b5%d0%b4%d0%b5%d0%bd%d0%b8%d0%b5-%d0%b8-%d1%82%d0%b5%d1%80%d0%bc%d0%b8%d0%bd%d0%be%d0%bb%d0%be%d0%b3%d0%b8%d1%8f">
+#
+&lt;/a>
+Введение и терминология
+&lt;/div>
+&lt;/h2>
+&lt;p>Systemd отвечает за запуск программ и сервисов после старта операционной системы. Он следит за процессом загрузки, решает что запустить и как. Строго говоря, он делает ровно то же самое, что делал SystemV init. Systemd писали значительно позже init – в нем пытались &lt;em>починить&lt;/em> вещи, которые в init сделаны плохо. Например, в init нет возможности сделать зависимость запуска одного сервиса от другого. Так же init не поддерживает параллельной загрузки. Параллельная загрузка сервисов радикально ускоряет старт операционной системы.&lt;/p>
+&lt;h2 id="unit" >
+&lt;div>
+&lt;a href="#unit">
+#
+&lt;/a>
+Unit
+&lt;/div>
+&lt;/h2>
+&lt;p>Unit – это описание сервиса (в широком смысле этого слова). Unit-файл описывает все настройки сервиса, как его запускать, когда (очередность, зависимости) и что делать, если запуск не удался. Unit-ы, которые пишет пользователь руками – должны находится в &lt;code>/etc/systemd/system&lt;/code> и иметь окончание &lt;code>.service&lt;/code> в названии. Юниты, которые устанавливают пакеты – находятся в ином месте. Если в нескольких папках лежит юнит с одним и тем же именем – применяется тот, что лежит в &lt;code>/etc/systemd/system&lt;/code>. Пример юнита:&lt;/p>
+&lt;pre>&lt;code>[Unit]
+Description=etcd – highly-available key value store
+Documentation=https://github.com/coreos/etcd
+Documentation=man:etcd
+After=network.target
+Wants=network-online.target
+[Service]
+Environment=DAEMON_ARGS=
+Environment=ETCD_NAME=%H
+EnvironmentFile=-/etc/default/%p
+WorkingDir=/var/lib/etcd
+Type=notify
+User=etcd
+PermissionsStartOnly=true
+ExecStart=/usr/bin/etcd $DAEMON_ARGS
+Restart=on-abnormal
+RestartSec=10s
+LimitNOFILE=65536
+[Install]
+WantedBy=multi-user.target
+&lt;/code>&lt;/pre>
+&lt;p>Я специально взял юнит посложнее, чтобы пример был наглядным. На что обратить внимание:&lt;/p>
+&lt;ul>
+&lt;li>Description – человеко-читаемое описание. Показывается по команде &lt;code>service &amp;lt;name&amp;gt; status&lt;/code>&lt;/li>
+&lt;li>After – начать загрузку после того, как начнется загрузка сервиса (или цели)&lt;/li>
+&lt;li>Wants – опциональная зависимость. Подробнее ниже, в разделе про зависимости&lt;/li>
+&lt;li>Environment – создать переменную окружения при запуске этого сервиса&lt;/li>
+&lt;li>WorkingDir – демон запускается из этой папки. Аналогично &lt;code>cd /var/lib/etcd&lt;/code> перед запуском&lt;/li>
+&lt;li>Type – тип сервиса. Подробнее ниже&lt;/li>
+&lt;li>User – имя пользователя, от которого будет запущен сервис&lt;/li>
+&lt;li>PermissionsStartOnly – используется, если перед стартом нужна какая-то специальная подготовка – создание папок, изменение прав и так далее. При &lt;code>PermissionsStartOnly=true&lt;/code> эти действия будут выполнятся от root. Без – от имени User&lt;/li>
+&lt;li>ExecStart – что, собственно, запускать. Обязательно полный путь&lt;/li>
+&lt;li>RestartOn – при каких условиях перезапускать&lt;/li>
+&lt;li>WantedBy – в какой target должен быть установлен сервис. Подробнее – в разделе про target-ы&lt;/li>
+&lt;/ul>
+&lt;h3 id="виды-unit-ов" >
+&lt;div>
+&lt;a href="#%d0%b2%d0%b8%d0%b4%d1%8b-unit-%d0%be%d0%b2">
+##
+&lt;/a>
+Виды Unit-ов
+&lt;/div>
+&lt;/h3>
+&lt;p>Systemd может обслуживать процессы с разным поведением. Тип описывает, как systemd будет с ним взаимодействовать. Есть следующие варианты:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>Type=Simple&lt;/code> – самый стандартный тип. Процесс остается в foreground, stdout перехватывается systemd. Это тип по умолчанию.&lt;/li>
+&lt;li>&lt;code>Type=Forking&lt;/code> – прямая противоположность. Процесс должен форкнуться и отсоединится от foreground. Для этого типа юнитов должен быть указан pid через директиву &lt;code>PIDFile&lt;/code>.&lt;/li>
+&lt;li>&lt;code>Type=oneshot&lt;/code> – процесс, который успешно выполняется (не делая fork) и завершается. Пример – монтирование файловых систем. Рекомендуется добавить &lt;code>RemainAfterExit=yes&lt;/code> в юнит, чтобы результаты работы процесса остался в статусе юнита.&lt;/li>
+&lt;li>&lt;code>Type=notify&lt;/code> – аналог simple, но в этом случае сам процесс сообщит systemd о том, что он закончил загрузку и готов к работе.&lt;/li>
+&lt;/ul>
+&lt;h3 id="взаимодействие-с-unit-ами" >
+&lt;div>
+&lt;a href="#%d0%b2%d0%b7%d0%b0%d0%b8%d0%bc%d0%be%d0%b4%d0%b5%d0%b9%d1%81%d1%82%d0%b2%d0%b8%d0%b5-%d1%81-unit-%d0%b0%d0%bc%d0%b8">
+##
+&lt;/a>
+Взаимодействие с unit-ами
+&lt;/div>
+&lt;/h3>
+&lt;p>После каждого изменения файла юнита (создание/изменение/удаление) – нужно перечитывать изменения, так как состояния юнитов systemd кеширует:&lt;/p>
+&lt;pre>&lt;code>systemctl daemon-reload
+&lt;/code>&lt;/pre>
+&lt;p>Запус, состояние, остановка:&lt;/p>
+&lt;pre>&lt;code>#запуск
+systemctl start [unit]
+service [unit] start
+#состояние
+systemctl status [unit]
+service [unit] status
+#остановка
+systemctl stop [unit]
+service [unit] stop
+#сервис в автозагрузку
+systemctl enable [unit]
+#полностью запретить запуск сервиса (даже команда service [unit] start не поможет)
+systemctl mask [unit]
+#разрешить запуск обратно
+systemctl unmask [unit]
+&lt;/code>&lt;/pre>
+&lt;p>Systemd имеет свою собственную реализацию логирования (хотя по умолчанию в syslog копию сообщения он тоже отправляет). Чтение сообщений от сервисов – командой journalctl. Команда очень мощная, умеет много. Ниже примеры&lt;/p>
+&lt;pre>&lt;code>#чтение информации по юниту
+journalctl -u [UNIT]
+#чтение по PID
+journalctl _PID=12
+#аналогично по конкретному файлу
+journalctl /usr/bin/atd
+#чтение информаций о юнитах, завершившихся с ошибкой
+journalctl -xn
+#чтение журнала с момента загрузки
+journalctl -b
+#чтение журнала с определенного момента
+journalctl --since=&amp;quot;2018-01-24 10:15:10&amp;quot;
+journalctl --since &amp;quot;10 minutes ago&amp;quot;
+#постоянное отслеживание событий (аналог tail -f)
+journalctl -f
+#по умолчанию systemd обрезает строки по длине экрана. Запретим ему это:
+journalctl -l
+#фильтры можно комбинировать
+journalctl -u redis -f -l --since &amp;quot;10 minutes ago&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;h3 id="управление-зависимостями-очередность-загрузки-юнитов" >
+&lt;div>
+&lt;a href="#%d1%83%d0%bf%d1%80%d0%b0%d0%b2%d0%bb%d0%b5%d0%bd%d0%b8%d0%b5-%d0%b7%d0%b0%d0%b2%d0%b8%d1%81%d0%b8%d0%bc%d0%be%d1%81%d1%82%d1%8f%d0%bc%d0%b8-%d0%be%d1%87%d0%b5%d1%80%d0%b5%d0%b4%d0%bd%d0%be%d1%81%d1%82%d1%8c-%d0%b7%d0%b0%d0%b3%d1%80%d1%83%d0%b7%d0%ba%d0%b8-%d1%8e%d0%bd%d0%b8%d1%82%d0%be%d0%b2">
+##
+&lt;/a>
+Управление зависимостями, очередность загрузки юнитов
+&lt;/div>
+&lt;/h3>
+&lt;p>Для управления зависимостями в unit есть ключевые слова &lt;code>Wants&lt;/code>, &lt;code>Requires&lt;/code> и &lt;code>After&lt;/code>:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>After&lt;/code> – сервис начнет загрузку после того, как &lt;strong>начнет&lt;/strong> загружаться сервис, указанный в &lt;code>After&lt;/code>.&lt;/li>
+&lt;li>&lt;code>Wants&lt;/code> – сервис начнет загрузку после того, как &lt;strong>закончит&lt;/strong> загружаться сервис, указанный в &lt;code>Wants&lt;/code>. Статус загрузки этого сервиса не важен – даже если он упал и загрузится не смог – юнит попытается стартовать. То есть зависимость эта опциональная, и нужна она только для того, чтобы наш сервис начал загружаться не раньше, чем другой – закончит.&lt;/li>
+&lt;li>&lt;code>Requires&lt;/code> – сервис начнет загрузку после того, как сервис, указанный в &lt;code>Requires&lt;/code> закончит загрузку &lt;strong>успешно&lt;/strong>. Если сервис-зависимость загрузится не смог – наш сервис так же упадет с ошибкой (точнее – он даже не будет стартовать).&lt;/li>
+&lt;/ul>
+&lt;h2 id="targets" >
+&lt;div>
+&lt;a href="#targets">
+#
+&lt;/a>
+Targets
+&lt;/div>
+&lt;/h2>
+&lt;p>Target – целевое состояние системы. Именно Target определяет, какие сервисы будут загружены и в каком порядке. Аналог из мира sysV init – runlevel. Основные виды таргетов:&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>poweroff&lt;/code> – отключение системы&lt;/li>
+&lt;li>&lt;code>rescue&lt;/code> – режим восстановления, однопользовательский (init 1)&lt;/li>
+&lt;li>&lt;code>multi-user&lt;/code> – сетевой режим без графической оболочки, (init 3)&lt;/li>
+&lt;li>&lt;code>graphical&lt;/code> – сетевой режим с графической оболочкой (init 5)&lt;/li>
+&lt;li>&lt;code>reboot&lt;/code> – перезагрузка&lt;/li>
+&lt;li>&lt;code>emergency&lt;/code> – аварийная командная строка, минимальный функционал&lt;/li>
+&lt;/ul>
+&lt;p>Цели могут наследоваться друг от друга. Например, graphical включает в себя загрузку всего, что есть multiuser + после этого – подгрузку графической оболочки.&lt;/p>
+&lt;p>Взаимодействие с целями:&lt;/p>
+&lt;pre>&lt;code>#список целей
+systemctl list-units --type=target
+#перейти в нужную цель (например – загрузится из сетевого режима в графический)
+systemctl isolate graphical.target
+#выбрать target по умолчанию
+systemctl set-default multi-user.target
+&lt;/code>&lt;/pre>
+&lt;h2 id="заключение" >
+&lt;div>
+&lt;a href="#%d0%b7%d0%b0%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5">
+#
+&lt;/a>
+Заключение
+&lt;/div>
+&lt;/h2>
+&lt;p>systemd на данный момент - стандарт в linux-based операционных системах. Инструмент мощный, удобный и популярный, пусть и не без особенностей. Надеюсь, эта статья поможет начать им пользоваться.&lt;/p></description></item><item><title>Отслеживаем PHP с помощью PINBA на debian</title><link>/ru/post/2015-11-26-pinba/</link><pubDate>Thu, 26 Nov 2015 16:21:06 +0000</pubDate><guid>/ru/post/2015-11-26-pinba/</guid><description>&lt;p>PHP - исключительно популярный язык программирования, до сих пор огромное количество проектов пишется именно на нем. Язык ругают за отвратительный дизайн, неудобный синтаксис, кривое поведение в спорных случаях, отсутствие нормальных средств отладки - но его популярность это никак не снижает. Самое страшное для админа - ситуация, когда на сильно нагруженном проекте начинает тормозить код. Стандартные средства отладки (xprof, xdebug) роняют производительность языка в яму (накладные расходы - вплоть до пятикратного падения скорости), и как отлаживать сложный код на живую - совершенно неясно. Именно для борьбы с такими проблемами придумана PINBA - расширение для мониторинга скорости кода. Тут я расскажу, как установить PINBA (клиент, сервер и интерфейс) на debian и что с ними потом делать.&lt;/p>
+&lt;h2 id="как-это-работает" >
+&lt;div>
+&lt;a href="#%d0%ba%d0%b0%d0%ba-%d1%8d%d1%82%d0%be-%d1%80%d0%b0%d0%b1%d0%be%d1%82%d0%b0%d0%b5%d1%82">
+#
+&lt;/a>
+Как это работает
+&lt;/div>
+&lt;/h2>
+&lt;p>В отличае от XProf PINBA практически не замедляет работу скрипта. В базовом варианте она не требует никакой модификации PHP кода и никак на его выполнение не влияет. Устройство очень простое, штатно PINBA состоит из двух частей. Во-первых - это PHP extenstion (pinba.so), который отслеживает время выполнения скрипта (а так же - адрес скрипта и URL, нагрузку на CPU, память и код завершения). По окончании выполнения запроса он отправляет данные на сервер pinba. Сервер - это MySQL, собранный со специальным плагином (libpinba.so). Сервер принимает на определенном порту UDP-датаграммы и складывает их в базу. Интерфейсом для чтения статистики служит MySQL, что позволяет сравнительно легко анализировать данные и писать к ним свои интерфейсы. Важно, что php extension (генератор) не проверяет целостность отправленных данных или качество их доставки - он просто считает и отправляет.&lt;/p>
+&lt;p>Вот как будет выглядеть наша инсталляция:&lt;/p>
+&lt;p>&lt;img src="https://prudnitskiy.pro/media/uploads/pinba.png" alt="https://prudnitskiy.pro/media/uploads/pinba.png" title="схема инсталляции">&lt;/p>
+&lt;h2 id="установка-клиент" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%ba%d0%bb%d0%b8%d0%b5%d0%bd%d1%82">
+#
+&lt;/a>
+Установка: клиент
+&lt;/div>
+&lt;/h2>
+&lt;p>В debian репозитории DotDeb есть нужный нам клиент (генератор статистики) и проще всего его прямо оттуда и поставить. Если у вас еще не установлен DotDeb - вот &lt;a href="https://www.dotdeb.org/instructions/" title="инструкция">инструкция&lt;/a>. После этого просто ставим пакет:&lt;/p>
+&lt;pre>&lt;code>apt-get install -y php5-pinba
+&lt;/code>&lt;/pre>
+&lt;p>И настраиваем его, поправив файл /etc/php5/mods-available/pinba.ini&lt;/p>
+&lt;pre>&lt;code>extension=pinba.so
+pinba.enabled=1
+pinba.server=172.16.10.10:30002
+&lt;/code>&lt;/pre>
+&lt;p>В этом примере предполагается, что сервер, собирающий статистику у нас имеет адрес 172.16.10.10 и порт 30002. После этого перезапускаем php и установка клиента на этом закончена.&lt;/p>
+&lt;h2 id="установка-сервер" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d1%81%d0%b5%d1%80%d0%b2%d0%b5%d1%80">
+#
+&lt;/a>
+Установка: сервер
+&lt;/div>
+&lt;/h2>
+&lt;p>С установкой сервера все несколько сложнее, так как пакет pinba-server есть только у dotdeb и он сломан. Его прийдется собирать из исходного кода. Для начала на сервер статистики поставим сам mysql. Это должен быть именно стандартный mysql, а не maria или percona:&lt;/p>
+&lt;pre>&lt;code>apt-get install mysql-server-5.6 mysql-client-5.6 libmysqlclient18 libmysqlclient18-dev
+&lt;/code>&lt;/pre>
+&lt;p>Теперь поставим инструменты разработки, они потребуются нам, чтобы собрать пакет:&lt;/p>
+&lt;pre>&lt;code>apt-get install build-essential protobuf-compiler libmysqlclient-dev \
+libjudydebian1 libevent-dev libjudy-dev git libevent-2.0-5 libtool \
+libevent-core-2.0-5 libevent-extra-2.0-5 libevent-openssl-2.0-5 \
+libevent-pthreads-2.0-5 libprotobuf-dev libprotobuf-lite7 libprotobuf7 git-core
+&lt;/code>&lt;/pre>
+&lt;p>Переходим в tmp, выгружаем код pinba engine (сервер статистики) и исходный код mysql server:&lt;/p>
+&lt;pre>&lt;code>cd /var/tmp
+git clone 'https://github.com/tony2001/pinba_engine'
+apt-get source mysql-server
+&lt;/code>&lt;/pre>
+&lt;p>Нам потребуется header-file от существующего mysql-сервера, скопируем. Я не знаю, какая версия mysql-server будет у вас, у меня это mysql-5.6-5.6.25.&lt;/p>
+&lt;pre>&lt;code> cp '/usr/include/mysql/mysql_version.h' /var/tmp/mysql-5.6-5.6.25/include/
+cp '/usr/include/mysql/my_config.h' /var/tmp/mysql-5.6-5.6.25/include/
+&lt;/code>&lt;/pre>
+&lt;p>Нам нужно узнать текущие опции сборки mysql:&lt;/p>
+&lt;pre>&lt;code>OPTIONS=&amp;quot;$(VISUAL=\&amp;quot;$(which 'cat')\&amp;quot; mysqlbug | grep 'Configured with' | sed -e 's/.*configure -v //')&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Соберем модуль:&lt;/p>
+&lt;pre>&lt;code>cd pinba_engine
+./buildconf.sh
+./configure ${OPTIONS} \
+--with-mysql='${MYSQL_SOURCES}' \
+--with-judy \
+--with-protobuf \
+--with-event \
+--libdir='/usr/lib/mysql/plugin/'
+make
+make install
+&lt;/code>&lt;/pre>
+&lt;p>Библиотека собрана, теперь можно установить плагин на сервер и создать базу, где мы будем хранить статистику:&lt;/p>
+&lt;pre>&lt;code>mysql --execute=&amp;quot;INSTALL PLUGIN pinba SONAME 'libpinba_engine.so';&amp;quot; --user=root
+mysql --execute=&amp;quot;CREATE DATABASE pinba DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_unicode_ci;&amp;quot; --user=root
+mysql --user=root 'pinba' &amp;lt; '/tmp/pinba_engine/default_tables.sql'
+mysql --user=root --execute=&amp;quot;grant all on pinba.* to pinbauser@localhost identified by 'Hkx77jg8t6zGw6J5'&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь сообщим серверу настройки pinba. Для этого поправим /etc/mysql/my.cnf. В секции [mysqld] добавим следующее:&lt;/p>
+&lt;pre>&lt;code>pinba_port = 30002
+pinba_address = 172.16.10.10
+pinba_stats_gathering_period = 10000
+pinba_stats_history = 900
+pinba_temp_pool_size = 10000
+pinba_request_pool_size = 10000
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы изменения вступили в силу - надо перезапустить mysql. Разумеется, порт UDP/30002 не должен быть заблокирован в firewall. Настройка сервера на этом закончена, будемт ставить интерфейс.&lt;/p>
+&lt;h2 id="установка-интерфейс" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8%d0%bd%d1%82%d0%b5%d1%80%d1%84%d0%b5%d0%b9%d1%81">
+#
+&lt;/a>
+Установка: интерфейс
+&lt;/div>
+&lt;/h2>
+&lt;p>Эту роль у нас будет выполнять Intaro&amp;rsquo;s pinboard. Интерфейс довольно простой, но удобный и симпатичный. В принципе, его можно поставить на любой сервер, с которого есть доступ к mysql, в моем примере это будет тот же сервер, куда мы собираем статистику. Для работы pinboard потребуется nginx, php5 (версии не менее 5.5) и php composer. Установим:&lt;/p>
+&lt;pre>&lt;code>apt-get install -y php5-cli php5-common php5-curl php5-fpm php5-gd php5-mysql nginx-full
+curl -sS https://getcomposer.org/installer | php
+&lt;/code>&lt;/pre>
+&lt;p>Выгрузим код:&lt;/p>
+&lt;pre>&lt;code>cd /var/www
+git clone git://github.com/intaro/pinboard.git --branch=v1.5.2
+&lt;/code>&lt;/pre>
+&lt;p>Установим зависимости:&lt;/p>
+&lt;pre>&lt;code>cd pinboard
+php composer.phar install
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы интерфейс знал адрес и параметры соединения с базой, поправим настройки в файле &amp;lsquo;config/parameters.yml&amp;rsquo;:&lt;/p>
+&lt;pre>&lt;code>db:
+host: 127.0.0.1
+name: pinba
+user: pinbauser
+pass: Hkx77jg8t6zGw6J5
+&lt;/code>&lt;/pre>
+&lt;p>остальное менять не нужно. Мигрируем базу:&lt;/p>
+&lt;pre>&lt;code>./console migrations:migrate
+&lt;/code>&lt;/pre>
+&lt;p>Добавляем задание в крон для агрегации данных:&lt;/p>
+&lt;pre>&lt;code>./console register-crontab
+&lt;/code>&lt;/pre>
+&lt;p>Теперь осталось настроить nginx. Для этого создадим файл /etc/nginx/sites-enabled/pinba со следующим содержанием:&lt;/p>
+&lt;pre>&lt;code>server {
+listen 80;
+server_name pinba.ourdomian;
+access_log /var/log/nginx/pinba.access.log;
+error_log /var/log/nginx/pinba.error.log;
+root /var/www/pinboard/web;
+location = / {
+try_files @site @site;
+}
+location / {
+try_files $uri $uri/ @site;
+}
+location ~ \.php$ {
+return 404;
+}
+location @site {
+fastcgi_pass unix:///var/run/php5-fpm.sock;
+include fastcgi_params;
+fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+}
+location ~ /\.(ht|svn|git) {
+deny all;
+}
+}
+&lt;/code>&lt;/pre>
+&lt;p>Теперь достаточно просто перезапустить nginx и можно пользоваться нашим новым интерфейсом. Важно понимать, что статистика агрегируется раз в N минут (частоту спросит сам pinboard при миграции данных), но данные в секции live доступны в любой момент.&lt;/p></description></item><item><title>Мигрируем Debian на softraid без потери данных</title><link>/ru/post/2014-12-25-debian-to-mdraid/</link><pubDate>Thu, 25 Dec 2014 12:23:35 +0000</pubDate><guid>/ru/post/2014-12-25-debian-to-mdraid/</guid><description>&lt;p>Современные жесткие диски - чудо инженерии и техники. Пластины из магниево-алюминиевого сплава несутся со скоростью 120 оборотов в секунду, при этом считывающую голову от поверхности диска отделяет расстояние в 1/10 толщины человеческого волоса. Сама голова перемещается в любую точку всего за 2мс, что вызывает боковую перегрузку в фантастические 550G. Современные диски обладают впечатляющим объемом, большой линейной скоростью (что на чтение, что на запись) и минимальной задержкой поиска. И платят они за это (кроме цены) серьезным падением надежности. Старенькие Seagate Barracude и Quantum Fireball 6-10 гигабайт объемом без каких-либо нареканий жили десятилетиями, еще более старинные IBM на сотни мегабайт можно было безопасно вскрыть и закрыть в домашних условиях без специальной подготовки. Современные модели крайне чувствительны к вибрациям, тряске, углу наклона, удару и даже шуму (sic!). Средний срок жизни современного террабайтника - три года, если он эксплуатируется не слишком активно. Диски для серверов и NAS живут год-два. Если раньше RAID считался дорогой экзотикой серверного мира (по типу SCSI), то сейчас программный soft-raid - абсолютная необходимость, без которого сервер просто нельзя устанавливать.&lt;/p>
+&lt;p>В данной статье я расскажу, как мигрировать Debian Linux (в статье используется 7 версия, но с 6 тоже проблем не будет) с одного диска на зеркало из двух. В принципе, методика миграции универсальна, и Ubuntu или CentOS можно мигрировать точно так же. В качестве RAID будем использовать его программную реализацию (mdraid), что позволит сэкономить на железе. В общем случае использование mdraid оправдано, если у вас не очень много дисков (очень много - это больше 10), не используется сложный raid-алгоритм (RAID5/RAID6 и их потомки) и нет большой нагрузки на IOT. Если top показывает, что IO wait ушел куда-то к 50% - время подумать о покупке аппаратного решения.&lt;/p>
+&lt;p>В моем примере используется стандартная разбивка от Неметт:&lt;/p>
+&lt;pre>&lt;code>/dev/sda5 473M 148M 302M 33% /
+/dev/sda1 472M 30M 418M 7% /boot
+/dev/sda6 949M 33M 917M 4% /tmp
+/dev/sda7 5.5G 829M 4.5G 16% /usr
+/dev/sda8 448G 674M 425G 1% /var
+&lt;/code>&lt;/pre>
+&lt;p>&lt;em>Внимание! FreeBSD мигрируется по иной схеме, так как во FreeBSD нет mdraid, вместо него используется GEOM. Не пытайтесь адаптировать данную статью для FreeBSD! Если вам нужна статья по миграции FreeBSD - напишите в комментариях, я напишу такую инструкцию отдельно&lt;/em>
+&lt;a name="more">&lt;/a>&lt;/p>
+&lt;h2 id="подготовка-и-миграция-данных" >
+&lt;div>
+&lt;a href="#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bc%d0%b8%d0%b3%d1%80%d0%b0%d1%86%d0%b8%d1%8f-%d0%b4%d0%b0%d0%bd%d0%bd%d1%8b%d1%85">
+#
+&lt;/a>
+Подготовка и миграция данных
+&lt;/div>
+&lt;/h2>
+&lt;p>В данной статье я предполагаю, что у нас два одинаковых диска, /dev/sda - это реальный, а /dev/sdb - свеже установленный. Все действия производятся от root.&lt;/p>
+&lt;p>Для начала нам потребуется немного ПО:&lt;/p>
+&lt;pre>&lt;code>apt-get install mdmadm rsync screen
+&lt;/code>&lt;/pre>
+&lt;p>screen в данной ситуации ставится, чтобы избежать проблем, если во время копирования данных поломается сеть. Если копируете локально (с консоли) - он вам не нужен&lt;/p>
+&lt;p>проверим геометрию:&lt;/p>
+&lt;pre>&lt;code>#sfdisk -d /dev/sda
+Warning: extended partition does not start at a cylinder boundary.
+DOS and Linux will interpret the contents differently.
+# partition table of /dev/sda
+unit: sectors
+/dev/sda1 : start= 2048, size= 997376, Id=83, bootable
+/dev/sda2 : start= 999424, size= 1000000, Id=83
+/dev/sda3 : start= 2000894, size=974770178, Id= 5
+/dev/sda4 : start= 0, size= 0, Id= 0
+/dev/sda5 : start= 2000896, size= 7811072, Id=82
+/dev/sda6 : start= 9814016, size= 1951744, Id=83
+/dev/sda7 : start= 11767808, size= 11716608, Id=83
+/dev/sda8 : start= 23486464, size=953284608, Id=83
+&lt;/code>&lt;/pre>
+&lt;p>Warning можно игнорировать. На данном этапе рекомендую проверить, что на диске-получателе геометрии нет. Если там есть данные, то при копировании геометрии они умрут, и шансов восстановить их без скальпеля не будет:&lt;/p>
+&lt;pre>&lt;code>sfdisk -d /dev/sdb
+Warning: extended partition does not start at a cylinder boundary.
+DOS and Linux will interpret the contents differently.
+# partition table of /dev/sda
+unit: sectors
+&lt;/code>&lt;/pre>
+&lt;p>Копируем геометрию:&lt;/p>
+&lt;pre>&lt;code>sfdisk -d /dev/sda | sfdisk /dev/sdb
+&lt;/code>&lt;/pre>
+&lt;p>Лирическое отступление. Если у вас большие диски и используется GPT-таблица - sfdisk вам не поможет, потребуется установить программу &lt;code>gdisk&lt;/code> и переносить уже ей:&lt;/p>
+&lt;pre>&lt;code>#переносим раздел
+sgdisk -R /dev/sdb /dev/sda
+#рандомизируем GUID
+sgdisk -G /dev/sdb
+&lt;/code>&lt;/pre>
+&lt;p>Теперь у нас есть два идентичных по разбивке диска. Соберем из второго диска RAID. В нашей ситуации это зеркало (raid-1), по этому RAID будет работать, даже если в массиве остался один диск (так как по идеологии RAID-1 диски совершенно равноправны). Мы создадим по одному raid на каждый раздел диска, включая своп (это гарантирует, что система нормально запустится, если любой диск выйдет из строя). Так как в нормальном случае при сборке зеркала надо указывать два диска, вместо отсутствующего мы будем использовать ключевое слово missing&lt;/p>
+&lt;p>Важное примечание. GRUB первой версии не может загружаться с новой версии mdraid-массива. Специально для boot-раздела нужно указать старую версию дискового массива (ключом &amp;ndash;metadata=0.90). В моем примере это md0:&lt;/p>
+&lt;pre>&lt;code>mdadm --create /dev/md0 --level 1 --raid-devices=2 missing /dev/sdb1 --metadata=0.90
+mdadm --create /dev/md1 --level 1 --raid-devices=2 missing /dev/sdb2
+mdadm --create /dev/md2 --level 1 --raid-devices=2 missing /dev/sdb5
+mdadm --create /dev/md3 --level 1 --raid-devices=2 missing /dev/sdb6
+mdadm --create /dev/md4 --level 1 --raid-devices=2 missing /dev/sdb7
+mdadm --create /dev/md4 --level 1 --raid-devices=2 missing /dev/sdb8
+&lt;/code>&lt;/pre>
+&lt;p>Массив собрался, проверим:&lt;/p>
+&lt;pre>&lt;code>cat /proc/mdstat
+Personalities : [raid1]
+md5 : active raid1 sdb8[1]
+476511040 blocks super 1.2 [2/1] [_U]
+md4 : active raid1 sdb7[1]
+5854144 blocks super 1.2 [2/1] [_U]
+md3 : active raid1 sdb6[1]
+975296 blocks super 1.2 [2/1] [_U]
+md2 : active raid1 sdb5[1]
+3903424 blocks super 1.2 [2/1] [_U]
+md1 : active raid1 sdb2[1]
+499712 blocks super 1.2 [2/1] [_U]
+md0 : active raid1 sdb1[1]
+499712 blocks [2/1] [_U]
+&lt;/code>&lt;/pre>
+&lt;p>Выглядит вроде норм (обратите внимание на md0!), можно форматировать наши новые разделы. Я очень рекомендую использовать метки (label) при форматировании - это здорово облегчает жизнь при проблемах. Метка выставляется ключем -L&lt;/p>
+&lt;pre>&lt;code>#так, как у нас GRUB1, который не умеет работать с ext4 - загрузочный раздел поставим на ext3
+mkfs.ext3 /dev/md0 -L /boot
+[...]
+mkfs.ext4 /dev/md1 -L /
+[...]
+mkswap /dev/md2 -L swap
+[...]
+mkfs.xfs /dev/md3 -L /tmp
+[...]
+mkfs.ext4 /dev/md4 -L /usr
+[...]
+mkfs.ext4 /dev/md5 -L /var
+&lt;/code>&lt;/pre>
+&lt;p>После того, как все отформатируется, можно монтировать:&lt;/p>
+&lt;pre>&lt;code>mount /dev/md1 /mount
+#создадим каталоги для виртуальных систем, которые создаются при запуске ОС
+mkdir /mount/dev mount/proc /mount/sys
+#теперь создадим пути для монтирования наших разделов
+mkdir /mount/boot /mount/tmp /mount/usr /mount/var
+# и смонтируем необходимые для миграции каталоги
+mount /dev/md0 /mount/boot
+mount /dev/md4 /mount/usr
+mount /dev/md5 /mount/var
+&lt;/code>&lt;/pre>
+&lt;p>Теперь у нас есть две файловых системы: реальная, с которой сервер сейчас загружен и &amp;ldquo;пустая&amp;rdquo;, структурно повторяющая реальную. И во вторую можно копировать данные из первой. Процедура длительная, крайне рекомендую проводить ее через screen. Перед началом рекомендуется остановить все сервисы, которые активно пишут в жесткий диск (например, mysql) - иначе есть риск получить неконсистентность данных:&lt;/p>
+&lt;pre>&lt;code>#переключаемся в screen
+screen -dR
+#начинаем копировать. Нужно указать в качестве исключений при копирвании служебные
+#файловые системы (proc, sys, dev, selinux, если он есть)
+#и служебные каталоги самих файлсистем. в ext3/ext4 таким является lost+found,
+#это учет inode-сирот и копировать его бессмысленно
+#и, разумеется, надо исключить каталог, в который мы копируем - иначе будет петля
+rsync -rahzP --exclude=/dev --exclude=/proc --exclude=/sys \
+--exclude=/lost+found --exclude=/boot/lost+found --exclude=/var/lost+found --exclude=/usr/lost+found \
+--exclude=/mount / /mount/
+&lt;/code>&lt;/pre>
+&lt;h3 id="переключение-на-новый-диск" >
+&lt;div>
+&lt;a href="#%d0%bf%d0%b5%d1%80%d0%b5%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5-%d0%bd%d0%b0-%d0%bd%d0%be%d0%b2%d1%8b%d0%b9-%d0%b4%d0%b8%d1%81%d0%ba">
+##
+&lt;/a>
+Переключение на новый диск
+&lt;/div>
+&lt;/h3>
+&lt;p>Теперь нам нужно установить загрузчик на второй диск. Прелесть загрузчика в том, что он живет в загрузочной области, которая не отображается на файловую систему, а значит, копировать его &amp;ldquo;в лоб&amp;rdquo; - бессмысленно. Загрузчик ставится на диск, а не на раздел. Если у вас 10 дисков - ставить надо на все, которые в теории должны быть загрузочными&lt;/p>
+&lt;pre>&lt;code>grub-install /dev/sdb
+&lt;/code>&lt;/pre>
+&lt;p>После переноса данных начинается самое сложное - правка путей. В старых версиях linux адресация дисков была относительной, master в канале ide0 назывался hda, slave ide 1 - hde (hdd был зарезервирован). Это вызывало интересные коллизии в SCSI и SATA, где адресация внутри шины не абсолютна, и после перезагрузки диски могли легко поменяется местами - просто потому, что кто-то очнулся раньше. Поэтому в новых версиях введен механизм block uuid, у каждого блочного устройства есть абсолютно уникальный идентификатор, и обращения к дискам идут строго по нему.&lt;/p>
+&lt;p>Нам нужно получить список всех блочных идентификаторов, их выдает команда blkid:&lt;/p>
+&lt;pre>&lt;code>blkid
+/dev/sda5: UUID=&amp;quot;b7b1edbd-308d-489f-8289-43126f1a9b70&amp;quot; TYPE=&amp;quot;swap&amp;quot;
+/dev/sda1: UUID=&amp;quot;1b2e76b3-ffc9-4846-a210-02ed19373976&amp;quot; TYPE=&amp;quot;ext3&amp;quot; SEC_TYPE=&amp;quot;ext2&amp;quot; LABEL=&amp;quot;/boot&amp;quot;
+/dev/sda2: UUID=&amp;quot;07ca4a9e-4262-44d4-a8e4-31ae37306003&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/sda6: UUID=&amp;quot;b7ab9817-7e56-455c-99f6-9c0d9a8e23d6&amp;quot; TYPE=&amp;quot;xfs&amp;quot;
+/dev/sda7: UUID=&amp;quot;8e6777bf-a565-4983-9851-ff358a1d0da3&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/sda8: UUID=&amp;quot;591e3e16-db6d-4caa-87d3-f0d3b8848b98&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/sdb1: UUID=&amp;quot;a96db57d-5724-63e6-769a-12bac1c5caa9&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb2: UUID=&amp;quot;0b338f2d-c26b-d8c0-f8c4-5384672d5ebb&amp;quot; UUID_SUB=&amp;quot;f459ad18-3892-50ff-b2f0-d9cec2490d65&amp;quot; LABEL=&amp;quot;ffs:1&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb5: UUID=&amp;quot;5438f240-b120-69f1-0eb9-fd89f7deb762&amp;quot; UUID_SUB=&amp;quot;ff19fb3c-c5ce-ad49-2825-28cb490c98d9&amp;quot; LABEL=&amp;quot;ffs:2&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb6: UUID=&amp;quot;a769e010-9f0e-0861-c1fc-d120e436004a&amp;quot; UUID_SUB=&amp;quot;27db9864-f01a-5dac-9e26-ff75a8e5ccb9&amp;quot; LABEL=&amp;quot;ffs:3&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb7: UUID=&amp;quot;40aef537-e1b0-de63-8412-2c0d49e8a73c&amp;quot; UUID_SUB=&amp;quot;3bb89ea7-6b8b-7952-98d8-1fb080c548f4&amp;quot; LABEL=&amp;quot;ffs:4&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/sdb8: UUID=&amp;quot;d1e75e0e-5434-b700-dd83-a571d7b5ae3b&amp;quot; UUID_SUB=&amp;quot;f7602eb7-2169-8fed-e8fb-bc8feb04b431&amp;quot; LABEL=&amp;quot;ffs:5&amp;quot; TYPE=&amp;quot;linux_raid_member&amp;quot;
+/dev/md0: LABEL=&amp;quot;/boot&amp;quot; UUID=&amp;quot;9f2ec8da-9f6c-417c-81c2-39fd2e1b8dd9&amp;quot; SEC_TYPE=&amp;quot;ext2&amp;quot; TYPE=&amp;quot;ext3&amp;quot;
+/dev/md1: LABEL=&amp;quot;/&amp;quot; UUID=&amp;quot;9441c57c-c88f-4476-8e8d-b9a281292170&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/md2: LABEL=&amp;quot;swap&amp;quot; UUID=&amp;quot;bb4a83e7-1e21-434c-9d27-2b53a9431bdb&amp;quot; TYPE=&amp;quot;swap&amp;quot;
+/dev/md3: LABEL=&amp;quot;/tmp&amp;quot; UUID=&amp;quot;5f5b2216-3766-4b00-a8a7-0bd1330c8393&amp;quot; TYPE=&amp;quot;xfs&amp;quot;
+/dev/md4: LABEL=&amp;quot;/usr&amp;quot; UUID=&amp;quot;f9d85aee-3ef2-409d-8406-351e0dfd81ab&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+/dev/md5: LABEL=&amp;quot;/var&amp;quot; UUID=&amp;quot;7a36dd15-2a40-475e-b3e1-257569ca2958&amp;quot; TYPE=&amp;quot;ext4&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Много-много страшного текста (а я говорил, что label - очень помогает!). Теперь нам нужно поменять одни UID на другие. Менять можно в любом текстовом редакторе. Главное их не перепутать. Я рекомендую скопировать UID-ы куда-нибудь примерно в таком виде:&lt;/p>
+&lt;pre>&lt;code>1b2e76b3-ffc9-4846-a210-02ed19373976 -&amp;gt; 9f2ec8da-9f6c-417c-81c2-39fd2e1b8dd9
+07ca4a9e-4262-44d4-a8e4-31ae37306003 -&amp;gt; 9441c57c-c88f-4476-8e8d-b9a281292170
+&lt;/code>&lt;/pre>
+&lt;p>Менять UUID надо в двух местах:&lt;/p>
+&lt;ul>
+&lt;li>/mount/etc/fstab - список файловых систем. Там нужно поменять все UID&lt;/li>
+&lt;li>/mount/boot/grub/grub.cfg - конфигурация загрузчика. Тут будут только UUID разделов /boot и /, но будет их, в отличие от fstab, несколько&lt;/li>
+&lt;/ul>
+&lt;p>Если у вас нет доступа к BIOS и вы не можете поменять приоритет загрузки дисков, новый конфиг grub из /mount/boot/grub/grub.cfg нужно скопировать на место старого (/boot/grub/grub.cfg).&lt;/p>
+&lt;p>Данные скопированы, и теперь можно спокойно перезагружать сервер:&lt;/p>
+&lt;pre>&lt;code>sync
+reboot
+&lt;/code>&lt;/pre>
+&lt;p>После того, как сервер вновь станет отвечать на внешние раздражители, проверим, что он загрузился с новых дисков:&lt;/p>
+&lt;pre>&lt;code>#mount
+/dev/md0 on /boot type ext3 (rw,relatime,errors=continue,user_xattr,acl,barrier=1,data=ordered)
+/dev/md3 on /tmp type xfs (rw,relatime,attr2,delaylog,noquota)
+/dev/md4 on /usr type ext4 (rw,relatime,user_xattr,barrier=1,data=ordered)
+/dev/md5 on /var type ext4 (rw,relatime,user_xattr,barrier=1,data=ordered)
+&lt;/code>&lt;/pre>
+&lt;p>Теперь осталось только проверить, что данные не потерялись по дороге и можно добавлять старый диск в новый RAID (напомню, сейчас наши массивы состоят из одного диска каждый, и RAID, строго говоря, не являются). До добавления старого диска мы еще можем обращаться к данным на нем, так убедитесь, что все данные переехали на новый диск и ничего не забыто. Шансов восстановить данные с диска, добавленного в RAID - нулевые:&lt;/p>
+&lt;pre>&lt;code>mdadm /dev/md0 --add /dev/sda1
+mdadm /dev/md1 --add /dev/sda2
+mdadm /dev/md2 --add /dev/sda5
+mdadm /dev/md3 --add /dev/sda6
+mdadm /dev/md4 --add /dev/sda7
+mdadm /dev/md5 --add /dev/sda8
+&lt;/code>&lt;/pre>
+&lt;p>Теперь остается только дождаться окончания синхронизации массива, а посмотреть состояние можно так:&lt;/p>
+&lt;pre>&lt;code>cat /proc/mdstat
+&lt;/code>&lt;/pre></description></item><item><title>Запуск ruby on rails на uwsgi на примере redmine</title><link>/ru/post/2013-06-20-rails-on-uwsgi/</link><pubDate>Thu, 20 Jun 2013 19:49:52 +0000</pubDate><guid>/ru/post/2013-06-20-rails-on-uwsgi/</guid><description>&lt;p>Для лично-рабочих нужд я активно использую task-tracking system под названием Redmine. Redmine практически всем хорош из открытых трекеров, но очень любит память. Традиционно он запускается через rails server (WEBRick) или rails-specific сервер thin. Во второй конфигурации у меня он жрал 300Мб оперативной памяти, а среднее время генерации страницы было близко к секунде, что совершенно неприемлимо. По этой причине я решил использовать uwsgi - совершенно прекрасный appserver, который я активно использую для своего творчества на python. Uwsgi работает очень быстро (действительно - очень!), достаточно экономно относится к памяти, обладает широчайшими возможностями конфигурирования - просто-таки мечта, а не сервер. До недавнего времени он умел работать только с python (под который интерфейс uWSGI, строго говоря, и создавался), но теперь умеет обрабатывать ruby и даже PHP. Минусом uwsgid является, во-первых, тот факт, что он находится на переднем крае разработок, а значит - может работать ой как своеобразно. Не менее своеобразно он настраивается, и документации по нему очень мало.&lt;/p>
+&lt;h2 id="идея" >
+&lt;div>
+&lt;a href="#%d0%b8%d0%b4%d0%b5%d1%8f">
+#
+&lt;/a>
+Идея
+&lt;/div>
+&lt;/h2>
+&lt;p>Запускать будем redmine, но это типовое rails приложение, все остальные запускаются так же. В качестве веб-сервера - nginx, апп-сервер - uwsgid, база данных - postgresql (но будет уточнение для mysql), для управления uwsgid будем использовать supervisord&lt;/p>
+&lt;h2 id="зависимости" >
+&lt;div>
+&lt;a href="#%d0%b7%d0%b0%d0%b2%d0%b8%d1%81%d0%b8%d0%bc%d0%be%d1%81%d1%82%d0%b8">
+#
+&lt;/a>
+Зависимости
+&lt;/div>
+&lt;/h2>
+&lt;p>Ставим системные компоненты:&lt;/p>
+&lt;pre>&lt;code>apt-get update
+apt-get install gcc cpp make nginx
+#postgresql
+apt-get install postgresql libpq-dev
+#или mysql
+apt-get install mysql libmysqlclient-dev
+&lt;/code>&lt;/pre>
+&lt;p>Лирическое отступление: я рекомендую использовать rvm вместо штатного руби. RVM живет вне пакетов, и обновлять его надо вручную, однако он позволяет получить самую свежую версию ruby, кроме того - он позволяет использовать несколько разных версий языка, а так же - несколько разных наборов библиотек (gem), не пересекая их друг с другом. Если у вас несколько приложений на ruby делят один сервер - это крайне удобный функционал.&lt;/p>
+&lt;p>Ставим ruby:&lt;/p>
+&lt;pre>&lt;code>#системная версия
+apt-get install ruby1.8 ruby1.8-dev rubygems
+#ИЛИ rvm
+curl -L https://get.rvm.io | bash -s stable
+rvm install 1.9.3-p429
+&lt;/code>&lt;/pre>
+&lt;p>Теперь доустанавливаем gem bundle. Он отвечает за установку необходимых для работы веб-приложения библиотек&lt;/p>
+&lt;pre>&lt;code>gem install bundle
+&lt;/code>&lt;/pre>
+&lt;h2 id="установка-redmine" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-redmine">
+#
+&lt;/a>
+Установка Redmine
+&lt;/div>
+&lt;/h2>
+&lt;p>Создадим базу данных и пользователя для работы с ней:&lt;/p>
+&lt;pre>&lt;code>#вариант для postgresql
+sudo -u postgres psql
+psql# create user redmineuser nocreatedb nocreateuser;
+psql# alter role redmineuser with password 'MySecretP@ssw0rd';
+psql# create database redminedb owner redmineuser;
+#вариант для mysql
+mysql -p
+mysql&amp;gt; create database redminedb;
+mysql&amp;gt; grant all on redminedb.* to redmineuser@localhost identified by 'MySecretP@ssw0rd';
+mysql&amp;gt; flush privileges;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь скачиваем и ставим сам redmine. Последнюю версию берем [http://rubyforge.org/frs/?group_id=1850] тут.&lt;/p>
+&lt;pre>&lt;code>wget http://rubyforge.org/frs/download.php/76933/redmine-2.3.1.tar.gz
+tar -xf redmine-2.3.1.tar.gz
+mv redmine-2.3.1 redmine
+&lt;/code>&lt;/pre>
+&lt;p>Для корректной работы надо исправить файл config/database.yml в корне приложения. Вот пример для postgresql:&lt;/p>
+&lt;pre>&lt;code>production:
+adapter: postgresql
+database: redminedb
+host: localhost
+username: redmineuser
+password: MySecretP@ssw0rd
+encoding: utf8
+schema_search_path: public
+&lt;/code>&lt;/pre>
+&lt;p>А вот пример для mysql:&lt;/p>
+&lt;pre>&lt;code>production:
+adapter: mysql
+database: redminedb
+host: localhost
+username: redmineuser
+password: MySecretP@ssw0rd
+encoding: utf8
+&lt;/code>&lt;/pre>
+&lt;p>Теперь самое сложное - установка GEM-ов. Gem - это библиотека в терминологии ruby. Их количество без преувеличения огромно, и делают они буквально все - appservers, драйвера к библиотекам, рисование графиков&amp;hellip; Любое нормальное руби-приложение использует множество гемов для работы. Для упрощения установки используется (сюрприз!) gem под названием bundle.
+Заходим в папку redmine и выполняем:&lt;/p>
+&lt;pre>&lt;code>#вариант для postgresql
+bundle install --without development test sqlite mysql rmagick
+#ИЛИ для mysql
+bundle install --without development test sqlite pg rmagick
+&lt;/code>&lt;/pre>
+&lt;p>Запуск приложения (любого!) от root не рекомендуется, так как взлом этого приложения скомпрометирует систему полностью.
+Сделаем непривелигированного юзера:&lt;/p>
+&lt;pre>&lt;code>useradd --system -m -d /var/www/redmine -s /bin/bash redmine
+&lt;/code>&lt;/pre>
+&lt;p>Послеустановочные действия:&lt;/p>
+&lt;pre>&lt;code>rake generate_secret_token
+RAILS_ENV=production rake db:migrate
+RAILS_ENV=production rake redmine:load_default_data
+mkdir -p tmp tmp/pdf public/plugin_assets
+chown -R redmine:redmine files log tmp public/plugin_assets
+chmod -R 755 files log tmp public/plugin_assets
+&lt;/code>&lt;/pre>
+&lt;h2 id="установка-и-подключение-uwsgid" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bf%d0%be%d0%b4%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5-uwsgid">
+#
+&lt;/a>
+Установка и подключение uwsgid
+&lt;/div>
+&lt;/h2>
+&lt;p>Ставим uwsgid. Его придется ставить из gem, потому, что тот, что идет в комплекте с системой, слишком старый - и не умеет работать с rails&lt;/p>
+&lt;pre>&lt;code>gem install uwsgi
+&lt;/code>&lt;/pre>
+&lt;p>Конфигурация uwsgi расскажет ему о том, как запустить rails. Пишем в файл uwsgi.ini&lt;/p>
+&lt;pre>&lt;code>[uwsgi]
+socket = /tmp/redmine.sock
+chmod-socket = 770
+master = true
+lazy = true
+processes = 2 #по количеству ядер в системе. У меня atom 525, два ядра
+post-buffering = 4096
+#следующие три строки - только для тех, кто использует RVM
+rvm-path = /usr/local/rvm
+#имя ruby, указывать обязательно, даже, если он указан по умолчанию
+rvm = ruby-1.9.3-p429
+#название gemset в формате язык@гемсет
+gemset = ruby-1.9.3-p429@redmine
+uid = redmine
+gid = www-data
+env = RAILS_ENV=production
+chdir = /var/www/redmine
+rack = /var/www/redmine/config.ru
+http-modifier1 = 7
+&lt;/code>&lt;/pre>
+&lt;p>Сам по себе supervisor умеет порождать процессы-обработчики (это так называемый режим императора), но это совсем молодая фишка и работает она&amp;hellip; Ну, как любая совсем новая фишка. Лично я рекомендую использовать для управления supervisord. Его задача - запускать и останавливать другие процессы (в данном контексте - uwsgi). Он обладает очень простым (если не сказать - примитивным) конфигурационным файлом и очень прост в работе. Устанавливаем:&lt;/p>
+&lt;pre>&lt;code>apt-get install supervisord
+/etc/init.d/supervisor start
+&lt;/code>&lt;/pre>
+&lt;p>Теперь нам надо создать конфиг для нашего приложения. В папке &lt;code>/etc/supervisor/conf.d&lt;/code> создаем файл с произвольным именем и окончанием .conf. Содержимое:&lt;/p>
+&lt;pre>&lt;code>[program:redmine]
+directory=/var/www/redmine
+command=uwsgi --ini /var/www/redmine/uwsgi.ini
+autostart=true
+&lt;/code>&lt;/pre>
+&lt;p>Теперь его надо подключить. У supervisord есть собственная консоль, она называется supervisorctl. Заходим:&lt;/p>
+&lt;pre>&lt;code>supervisorctl
+#поиск новых конфигов
+supervisor&amp;gt; reread
+#нашелся
+redmine: available
+#добавляем
+supervisor&amp;gt; add redmine
+redmine: added process group
+#проверим, работает?
+supervisor&amp;gt; status
+redmine BACKOFF can't find command 'uwsgi'
+&lt;/code>&lt;/pre>
+&lt;p>Не находится он потому, что supervisorctl не может найти rvm-версию uwsgi. Ок, укажем вручную:&lt;/p>
+&lt;pre>&lt;code>find / -name uwsgi
+[...]
+/usr/local/rvm/gems/ruby-1.9.3-p429/bin/uwsgi
+[...]
+&lt;/code>&lt;/pre>
+&lt;p>Вносим изменения в наш конфиг &lt;code>/etc/supervisor/conf.d/redmine.conf&lt;/code>. Теперь он выглядит так:&lt;/p>
+&lt;pre>&lt;code>[program:redmine]
+directory=/var/www/redmine
+command=/usr/local/rvm/gems/ruby-1.9.3-p429/bin/uwsgi --ini /var/www/redmine/uwsgi.ini
+autostart=true
+&lt;/code>&lt;/pre>
+&lt;p>Обновим конфиг без перезагрузки supervisord:&lt;/p>
+&lt;pre>&lt;code>supervisorctl update redmine
+supervisorctl status
+[...]
+redmine RUNNING pid 25365, uptime 0:00:18
+[...]
+&lt;/code>&lt;/pre>
+&lt;p>Отлично, uwsgi работает, подключаем nginx. Debian-way предполагает, что конфигурации сайтов находятся в отдельных файлах каталога /etc/nginx/sites-enabled. Содержимое /etc/nginx/sites-enabled/redmine&lt;/p>
+&lt;pre>&lt;code>server {
+listen 80;
+server_name redmine.office;
+location @redmine {
+uwsgi_modifier1 7;
+include uwsgi_params;
+uwsgi_pass unix:///tmp/redmine.sock;
+}
+location / {
+root /var/www/redmine/public;
+try_files $uri $uri/index.html $uri.html @redmine;
+}
+}
+&lt;/code>&lt;/pre>
+&lt;p>Кроме того, потребуется описание типовых параметров uwsgi, файл /etc/nginx/uwsgi_params&lt;/p>
+&lt;pre>&lt;code>uwsgi_param QUERY_STRING $query_string;
+uwsgi_param REQUEST_METHOD $request_method;
+uwsgi_param CONTENT_TYPE $content_type;
+uwsgi_param CONTENT_LENGTH $content_length;
+uwsgi_param REQUEST_URI $request_uri;
+uwsgi_param PATH_INFO $document_uri;
+uwsgi_param DOCUMENT_ROOT $document_root;
+uwsgi_param SERVER_PROTOCOL $server_protocol;
+uwsgi_param UWSGI_SCHEME $scheme;
+uwsgi_param REMOTE_ADDR $remote_addr;
+uwsgi_param REMOTE_PORT $remote_port;
+uwsgi_param SERVER_PORT $server_port;
+uwsgi_param SERVER_NAME $server_name;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь достаточно перезапустить nginx - и редмайн готов к использованию!&lt;/p></description></item><item><title>Обновление дистрибутива debian до 6 версии</title><link>/ru/post/2011-08-18-debian-update-distro/</link><pubDate>Thu, 18 Aug 2011 05:28:30 +0000</pubDate><guid>/ru/post/2011-08-18-debian-update-distro/</guid><description>&lt;p>В свете выхода нового стабильного релиза любимого мною дистрибутива Debian (Squeeze, 6.0) - краткая инструкция по обновлению дистрибутива до нового релиза.&lt;/p>
+&lt;h2 id="предварительно" >
+&lt;div>
+&lt;a href="#%d0%bf%d1%80%d0%b5%d0%b4%d0%b2%d0%b0%d1%80%d0%b8%d1%82%d0%b5%d0%bb%d1%8c%d0%bd%d0%be">
+#
+&lt;/a>
+Предварительно:
+&lt;/div>
+&lt;/h2>
+&lt;ul>
+&lt;li>Не рекомендуется использовать слова-состояния дистрибутива в конфигурации apt (stable, unstable, testing) - рекомендуется использовать имена собственные дистрибутивов&lt;/li>
+&lt;li>Не рекомендуется использовать российские зеркала, особенно - в первые дни после выхода дистрибутива. Питерцы могут использовать зеркало в Финляндии, москвичи - английское, Владивостокцы - напрямую американское, оно ближе. Российские зеркала в первые недели выхода релиза практически неработоспособны (Yandex, например, по сию пору имеет несколько поврежденных критически важных пакетов, а на chg.ru несколько пакетов и вовсе закрыты 403 ошибкой)&lt;/li>
+&lt;li>Бекап никто не отменял, особенно это касается удаленных серверов.&lt;/li>
+&lt;li>Если используются хитрые правила монтирования - рекомендуется временно их отключить. Как минимум, необходимо дать права на запись / и /boot и разрешить выполнение файлов в /var&lt;/li>
+&lt;/ul>
+&lt;h2 id="инструкция" >
+&lt;div>
+&lt;a href="#%d0%b8%d0%bd%d1%81%d1%82%d1%80%d1%83%d0%ba%d1%86%d0%b8%d1%8f">
+#
+&lt;/a>
+Инструкция:
+&lt;/div>
+&lt;/h2>
+&lt;p>Меняем настройки apt:&lt;/p>
+&lt;pre>&lt;code>#deb ftp://ftp.fi.debian.org/debian/ etch main contrib non-free
+#deb-src ftp://ftp.fi.debian.org/debian/ etch main contrib non-free
+deb ftp://ftp.fi.debian.org/debian/ squeeze main contrib non-free
+deb-src ftp://ftp.fi.debian.org/debian/ squeeze main contrib non-free
+#deb http://security.debian.org/ etch/updates main
+#deb-src http://security.debian.org/ etch/updates main
+deb http://security.debian.org/ squeeze/updates main
+deb-src http://security.debian.org/ squeeze/updates main
+#deb http://volatile.debian.org/debian-volatile squeeze/volatile main
+#deb-src http://volatile.debian.org/debian-volatile squeeze/volatile main
+&lt;/code>&lt;/pre>
+&lt;p>Выгружаем кеш пакетов:&lt;/p>
+&lt;p>&lt;code>sudo apt-get update&lt;/code>&lt;/p>
+&lt;p>Обновляем сам apt:&lt;/p>
+&lt;pre>&lt;code>sudo aptitude install apt dpkg aptitude
+&lt;/code>&lt;/pre>
+&lt;p>Обновляем операционную систему&lt;/p>
+&lt;pre>&lt;code>sudo aptitude full-upgrade
+&lt;/code>&lt;/pre>
+&lt;p>&lt;strong>Важно!&lt;/strong> При обновлении aptitude замещает часть файлов. О каждом случае замещения он подробно пишет. Это обязательно нужно читать, чтобы не получить неожиданный трудноуловимый сюрприз&lt;/p>
+&lt;p>Перезагружаемся и обновляем свежеобновленную систему:&lt;/p>
+&lt;pre>&lt;code>sudo apt-get update &amp;amp;&amp;amp; sudo apt-get upgrade
+&lt;/code>&lt;/pre>
+&lt;p>Снова перезагружаемся и проверяем, что все обновилось:&lt;/p>
+&lt;pre>&lt;code>cat /etc/debian_version
+6.0.1
+apt-get update &amp;amp;&amp;amp; apt-get upgrade
+&lt;/code>&lt;/pre></description></item></channel></rss>

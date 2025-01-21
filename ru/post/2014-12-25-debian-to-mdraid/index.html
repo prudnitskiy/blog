@@ -1,0 +1,135 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>Мигрируем Debian на softraid без потери данных - Инфраструктурный блог</title>
+<meta name=description content="Современные жесткие диски - чудо инженерии и техники. Пластины из магниево-алюминиевого сплава несутся со скоростью 120 оборотов в секунду, при этом считывающую голову от поверхности диска отделяет расстояние в 1/10 толщины человеческого волоса. Сама голова перемещается в любую точку всего за 2мс, что вызывает боковую перегрузку в фантастические 550G. Современные диски обладают впечатляющим объемом, большой линейной скоростью (что на чтение, что на запись) и минимальной задержкой поиска. И платят они за это (кроме цены) серьезным падением надежности. Старенькие Seagate Barracude и Quantum Fireball 6-10 гигабайт объемом без каких-либо нареканий жили десятилетиями, еще более старинные IBM на сотни мегабайт можно было безопасно вскрыть и закрыть в домашних условиях без специальной подготовки. Современные модели крайне чувствительны к вибрациям, тряске, углу наклона, удару и даже шуму (sic!). Средний срок жизни современного террабайтника - три года, если он эксплуатируется не слишком активно. Диски для серверов и NAS живут год-два. Если раньше RAID считался дорогой экзотикой серверного мира (по типу SCSI), то сейчас программный soft-raid - абсолютная необходимость, без которого сервер просто нельзя устанавливать."><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">Мигрируем Debian на softraid без потери данных</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2014-12-25>2014-12-25</time></div><a class="post-hidden-url u-url" href=/ru/post/2014-12-25-debian-to-mdraid/>/ru/post/2014-12-25-debian-to-mdraid/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href=/ru/tags/linux/>#Linux</a></li><li><a href=/ru/tags/debian/>#Debian</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#подготовка-и-миграция-данных>Подготовка и миграция данных</a><ul><li><a href=#переключение-на-новый-диск>Переключение на новый диск</a></li></ul></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>Современные жесткие диски - чудо инженерии и техники. Пластины из магниево-алюминиевого сплава несутся со скоростью 120 оборотов в секунду, при этом считывающую голову от поверхности диска отделяет расстояние в 1/10 толщины человеческого волоса. Сама голова перемещается в любую точку всего за 2мс, что вызывает боковую перегрузку в фантастические 550G. Современные диски обладают впечатляющим объемом, большой линейной скоростью (что на чтение, что на запись) и минимальной задержкой поиска. И платят они за это (кроме цены) серьезным падением надежности. Старенькие Seagate Barracude и Quantum Fireball 6-10 гигабайт объемом без каких-либо нареканий жили десятилетиями, еще более старинные IBM на сотни мегабайт можно было безопасно вскрыть и закрыть в домашних условиях без специальной подготовки. Современные модели крайне чувствительны к вибрациям, тряске, углу наклона, удару и даже шуму (sic!). Средний срок жизни современного террабайтника - три года, если он эксплуатируется не слишком активно. Диски для серверов и NAS живут год-два. Если раньше RAID считался дорогой экзотикой серверного мира (по типу SCSI), то сейчас программный soft-raid - абсолютная необходимость, без которого сервер просто нельзя устанавливать.</p><p>В данной статье я расскажу, как мигрировать Debian Linux (в статье используется 7 версия, но с 6 тоже проблем не будет) с одного диска на зеркало из двух. В принципе, методика миграции универсальна, и Ubuntu или CentOS можно мигрировать точно так же. В качестве RAID будем использовать его программную реализацию (mdraid), что позволит сэкономить на железе. В общем случае использование mdraid оправдано, если у вас не очень много дисков (очень много - это больше 10), не используется сложный raid-алгоритм (RAID5/RAID6 и их потомки) и нет большой нагрузки на IOT. Если top показывает, что IO wait ушел куда-то к 50% - время подумать о покупке аппаратного решения.</p><p>В моем примере используется стандартная разбивка от Неметт:</p><pre><code>/dev/sda5        473M  148M  302M  33% /
+/dev/sda1        472M   30M  418M   7% /boot
+/dev/sda6        949M   33M  917M   4% /tmp
+/dev/sda7        5.5G  829M  4.5G  16% /usr
+/dev/sda8        448G  674M  425G   1% /var
+</code></pre><p><em>Внимание! FreeBSD мигрируется по иной схеме, так как во FreeBSD нет mdraid, вместо него используется GEOM. Не пытайтесь адаптировать данную статью для FreeBSD! Если вам нужна статья по миграции FreeBSD - напишите в комментариях, я напишу такую инструкцию отдельно</em>
+<a name=more></a></p><h2 id=подготовка-и-миграция-данных><div><a href=#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bc%d0%b8%d0%b3%d1%80%d0%b0%d1%86%d0%b8%d1%8f-%d0%b4%d0%b0%d0%bd%d0%bd%d1%8b%d1%85>#
+</a>Подготовка и миграция данных</div></h2><p>В данной статье я предполагаю, что у нас два одинаковых диска, /dev/sda - это реальный, а /dev/sdb - свеже установленный. Все действия производятся от root.</p><p>Для начала нам потребуется немного ПО:</p><pre><code>apt-get install mdmadm rsync screen
+</code></pre><p>screen в данной ситуации ставится, чтобы избежать проблем, если во время копирования данных поломается сеть. Если копируете локально (с консоли) - он вам не нужен</p><p>проверим геометрию:</p><pre><code>#sfdisk -d /dev/sda
+Warning: extended partition does not start at a cylinder boundary.
+DOS and Linux will interpret the contents differently.
+# partition table of /dev/sda
+unit: sectors
+
+/dev/sda1 : start=     2048, size=   997376, Id=83, bootable
+/dev/sda2 : start=   999424, size=  1000000, Id=83
+/dev/sda3 : start=  2000894, size=974770178, Id= 5
+/dev/sda4 : start=        0, size=        0, Id= 0
+/dev/sda5 : start=  2000896, size=  7811072, Id=82
+/dev/sda6 : start=  9814016, size=  1951744, Id=83
+/dev/sda7 : start= 11767808, size= 11716608, Id=83
+/dev/sda8 : start= 23486464, size=953284608, Id=83
+</code></pre><p>Warning можно игнорировать. На данном этапе рекомендую проверить, что на диске-получателе геометрии нет. Если там есть данные, то при копировании геометрии они умрут, и шансов восстановить их без скальпеля не будет:</p><pre><code>sfdisk -d /dev/sdb
+Warning: extended partition does not start at a cylinder boundary.
+DOS and Linux will interpret the contents differently.
+# partition table of /dev/sda
+unit: sectors
+</code></pre><p>Копируем геометрию:</p><pre><code>sfdisk -d /dev/sda | sfdisk /dev/sdb
+</code></pre><p>Лирическое отступление. Если у вас большие диски и используется GPT-таблица - sfdisk вам не поможет, потребуется установить программу <code>gdisk</code> и переносить уже ей:</p><pre><code>#переносим раздел
+sgdisk -R /dev/sdb /dev/sda
+#рандомизируем GUID
+sgdisk -G /dev/sdb
+</code></pre><p>Теперь у нас есть два идентичных по разбивке диска. Соберем из второго диска RAID. В нашей ситуации это зеркало (raid-1), по этому RAID будет работать, даже если в массиве остался один диск (так как по идеологии RAID-1 диски совершенно равноправны). Мы создадим по одному raid на каждый раздел диска, включая своп (это гарантирует, что система нормально запустится, если любой диск выйдет из строя). Так как в нормальном случае при сборке зеркала надо указывать два диска, вместо отсутствующего мы будем использовать ключевое слово missing</p><p>Важное примечание. GRUB первой версии не может загружаться с новой версии mdraid-массива. Специально для boot-раздела нужно указать старую версию дискового массива (ключом &ndash;metadata=0.90). В моем примере это md0:</p><pre><code>mdadm --create /dev/md0 --level 1 --raid-devices=2 missing /dev/sdb1 --metadata=0.90
+mdadm --create /dev/md1 --level 1 --raid-devices=2 missing /dev/sdb2
+mdadm --create /dev/md2 --level 1 --raid-devices=2 missing /dev/sdb5
+mdadm --create /dev/md3 --level 1 --raid-devices=2 missing /dev/sdb6
+mdadm --create /dev/md4 --level 1 --raid-devices=2 missing /dev/sdb7
+mdadm --create /dev/md4 --level 1 --raid-devices=2 missing /dev/sdb8
+</code></pre><p>Массив собрался, проверим:</p><pre><code>cat /proc/mdstat
+
+Personalities : [raid1]
+md5 : active raid1 sdb8[1]
+      476511040 blocks super 1.2 [2/1] [_U]
+
+md4 : active raid1 sdb7[1]
+      5854144 blocks super 1.2 [2/1] [_U]
+
+md3 : active raid1 sdb6[1]
+      975296 blocks super 1.2 [2/1] [_U]
+
+md2 : active raid1 sdb5[1]
+      3903424 blocks super 1.2 [2/1] [_U]
+
+md1 : active raid1 sdb2[1]
+      499712 blocks super 1.2 [2/1] [_U]
+
+md0 : active raid1 sdb1[1]
+      499712 blocks [2/1] [_U]
+</code></pre><p>Выглядит вроде норм (обратите внимание на md0!), можно форматировать наши новые разделы. Я очень рекомендую использовать метки (label) при форматировании - это здорово облегчает жизнь при проблемах. Метка выставляется ключем -L</p><pre><code>#так, как у нас GRUB1, который не умеет работать с ext4 - загрузочный раздел поставим на ext3
+mkfs.ext3 /dev/md0 -L /boot
+[...]
+mkfs.ext4 /dev/md1 -L /
+[...]
+mkswap /dev/md2 -L swap
+[...]
+mkfs.xfs /dev/md3 -L /tmp
+[...]
+mkfs.ext4 /dev/md4 -L /usr
+[...]
+mkfs.ext4 /dev/md5 -L /var
+</code></pre><p>После того, как все отформатируется, можно монтировать:</p><pre><code>mount /dev/md1 /mount
+
+#создадим каталоги для виртуальных систем, которые создаются при запуске ОС
+mkdir /mount/dev mount/proc /mount/sys
+#теперь создадим пути для монтирования наших разделов
+mkdir /mount/boot /mount/tmp /mount/usr /mount/var
+
+# и смонтируем необходимые для миграции каталоги
+mount /dev/md0 /mount/boot
+mount /dev/md4 /mount/usr
+mount /dev/md5 /mount/var
+</code></pre><p>Теперь у нас есть две файловых системы: реальная, с которой сервер сейчас загружен и &ldquo;пустая&rdquo;, структурно повторяющая реальную. И во вторую можно копировать данные из первой. Процедура длительная, крайне рекомендую проводить ее через screen. Перед началом рекомендуется остановить все сервисы, которые активно пишут в жесткий диск (например, mysql) - иначе есть риск получить неконсистентность данных:</p><pre><code>#переключаемся в screen
+screen -dR
+
+#начинаем копировать. Нужно указать в качестве исключений при копирвании служебные
+#файловые системы (proc, sys, dev, selinux, если он есть)
+#и служебные каталоги самих файлсистем. в ext3/ext4 таким является lost+found,
+#это учет inode-сирот и копировать его бессмысленно
+#и, разумеется, надо исключить каталог, в который мы копируем - иначе будет петля
+
+rsync -rahzP --exclude=/dev --exclude=/proc --exclude=/sys \
+--exclude=/lost+found --exclude=/boot/lost+found --exclude=/var/lost+found --exclude=/usr/lost+found \
+--exclude=/mount / /mount/
+</code></pre><h3 id=переключение-на-новый-диск><div><a href=#%d0%bf%d0%b5%d1%80%d0%b5%d0%ba%d0%bb%d1%8e%d1%87%d0%b5%d0%bd%d0%b8%d0%b5-%d0%bd%d0%b0-%d0%bd%d0%be%d0%b2%d1%8b%d0%b9-%d0%b4%d0%b8%d1%81%d0%ba>##
+</a>Переключение на новый диск</div></h3><p>Теперь нам нужно установить загрузчик на второй диск. Прелесть загрузчика в том, что он живет в загрузочной области, которая не отображается на файловую систему, а значит, копировать его &ldquo;в лоб&rdquo; - бессмысленно. Загрузчик ставится на диск, а не на раздел. Если у вас 10 дисков - ставить надо на все, которые в теории должны быть загрузочными</p><pre><code>grub-install /dev/sdb
+</code></pre><p>После переноса данных начинается самое сложное - правка путей. В старых версиях linux адресация дисков была относительной, master в канале ide0 назывался hda, slave ide 1 - hde (hdd был зарезервирован). Это вызывало интересные коллизии в SCSI и SATA, где адресация внутри шины не абсолютна, и после перезагрузки диски могли легко поменяется местами - просто потому, что кто-то очнулся раньше. Поэтому в новых версиях введен механизм block uuid, у каждого блочного устройства есть абсолютно уникальный идентификатор, и обращения к дискам идут строго по нему.</p><p>Нам нужно получить список всех блочных идентификаторов, их выдает команда blkid:</p><pre><code>blkid
+
+/dev/sda5: UUID=&quot;b7b1edbd-308d-489f-8289-43126f1a9b70&quot; TYPE=&quot;swap&quot;
+/dev/sda1: UUID=&quot;1b2e76b3-ffc9-4846-a210-02ed19373976&quot; TYPE=&quot;ext3&quot; SEC_TYPE=&quot;ext2&quot; LABEL=&quot;/boot&quot;
+/dev/sda2: UUID=&quot;07ca4a9e-4262-44d4-a8e4-31ae37306003&quot; TYPE=&quot;ext4&quot;
+/dev/sda6: UUID=&quot;b7ab9817-7e56-455c-99f6-9c0d9a8e23d6&quot; TYPE=&quot;xfs&quot;
+/dev/sda7: UUID=&quot;8e6777bf-a565-4983-9851-ff358a1d0da3&quot; TYPE=&quot;ext4&quot;
+/dev/sda8: UUID=&quot;591e3e16-db6d-4caa-87d3-f0d3b8848b98&quot; TYPE=&quot;ext4&quot;
+/dev/sdb1: UUID=&quot;a96db57d-5724-63e6-769a-12bac1c5caa9&quot; TYPE=&quot;linux_raid_member&quot;
+/dev/sdb2: UUID=&quot;0b338f2d-c26b-d8c0-f8c4-5384672d5ebb&quot; UUID_SUB=&quot;f459ad18-3892-50ff-b2f0-d9cec2490d65&quot; LABEL=&quot;ffs:1&quot; TYPE=&quot;linux_raid_member&quot;
+/dev/sdb5: UUID=&quot;5438f240-b120-69f1-0eb9-fd89f7deb762&quot; UUID_SUB=&quot;ff19fb3c-c5ce-ad49-2825-28cb490c98d9&quot; LABEL=&quot;ffs:2&quot; TYPE=&quot;linux_raid_member&quot;
+/dev/sdb6: UUID=&quot;a769e010-9f0e-0861-c1fc-d120e436004a&quot; UUID_SUB=&quot;27db9864-f01a-5dac-9e26-ff75a8e5ccb9&quot; LABEL=&quot;ffs:3&quot; TYPE=&quot;linux_raid_member&quot;
+/dev/sdb7: UUID=&quot;40aef537-e1b0-de63-8412-2c0d49e8a73c&quot; UUID_SUB=&quot;3bb89ea7-6b8b-7952-98d8-1fb080c548f4&quot; LABEL=&quot;ffs:4&quot; TYPE=&quot;linux_raid_member&quot;
+/dev/sdb8: UUID=&quot;d1e75e0e-5434-b700-dd83-a571d7b5ae3b&quot; UUID_SUB=&quot;f7602eb7-2169-8fed-e8fb-bc8feb04b431&quot; LABEL=&quot;ffs:5&quot; TYPE=&quot;linux_raid_member&quot;
+/dev/md0: LABEL=&quot;/boot&quot; UUID=&quot;9f2ec8da-9f6c-417c-81c2-39fd2e1b8dd9&quot; SEC_TYPE=&quot;ext2&quot; TYPE=&quot;ext3&quot;
+/dev/md1: LABEL=&quot;/&quot; UUID=&quot;9441c57c-c88f-4476-8e8d-b9a281292170&quot; TYPE=&quot;ext4&quot;
+/dev/md2: LABEL=&quot;swap&quot; UUID=&quot;bb4a83e7-1e21-434c-9d27-2b53a9431bdb&quot; TYPE=&quot;swap&quot;
+/dev/md3: LABEL=&quot;/tmp&quot; UUID=&quot;5f5b2216-3766-4b00-a8a7-0bd1330c8393&quot; TYPE=&quot;xfs&quot;
+/dev/md4: LABEL=&quot;/usr&quot; UUID=&quot;f9d85aee-3ef2-409d-8406-351e0dfd81ab&quot; TYPE=&quot;ext4&quot;
+/dev/md5: LABEL=&quot;/var&quot; UUID=&quot;7a36dd15-2a40-475e-b3e1-257569ca2958&quot; TYPE=&quot;ext4&quot;
+</code></pre><p>Много-много страшного текста (а я говорил, что label - очень помогает!). Теперь нам нужно поменять одни UID на другие. Менять можно в любом текстовом редакторе. Главное их не перепутать. Я рекомендую скопировать UID-ы куда-нибудь примерно в таком виде:</p><pre><code>1b2e76b3-ffc9-4846-a210-02ed19373976 -&gt; 9f2ec8da-9f6c-417c-81c2-39fd2e1b8dd9
+07ca4a9e-4262-44d4-a8e4-31ae37306003 -&gt; 9441c57c-c88f-4476-8e8d-b9a281292170
+</code></pre><p>Менять UUID надо в двух местах:</p><ul><li>/mount/etc/fstab - список файловых систем. Там нужно поменять все UID</li><li>/mount/boot/grub/grub.cfg - конфигурация загрузчика. Тут будут только UUID разделов /boot и /, но будет их, в отличие от fstab, несколько</li></ul><p>Если у вас нет доступа к BIOS и вы не можете поменять приоритет загрузки дисков, новый конфиг grub из /mount/boot/grub/grub.cfg нужно скопировать на место старого (/boot/grub/grub.cfg).</p><p>Данные скопированы, и теперь можно спокойно перезагружать сервер:</p><pre><code>sync
+reboot
+</code></pre><p>После того, как сервер вновь станет отвечать на внешние раздражители, проверим, что он загрузился с новых дисков:</p><pre><code>#mount
+/dev/md0 on /boot type ext3 (rw,relatime,errors=continue,user_xattr,acl,barrier=1,data=ordered)
+/dev/md3 on /tmp type xfs (rw,relatime,attr2,delaylog,noquota)
+/dev/md4 on /usr type ext4 (rw,relatime,user_xattr,barrier=1,data=ordered)
+/dev/md5 on /var type ext4 (rw,relatime,user_xattr,barrier=1,data=ordered)
+</code></pre><p>Теперь осталось только проверить, что данные не потерялись по дороге и можно добавлять старый диск в новый RAID (напомню, сейчас наши массивы состоят из одного диска каждый, и RAID, строго говоря, не являются). До добавления старого диска мы еще можем обращаться к данным на нем, так убедитесь, что все данные переехали на новый диск и ничего не забыто. Шансов восстановить данные с диска, добавленного в RAID - нулевые:</p><pre><code>mdadm /dev/md0 --add /dev/sda1
+mdadm /dev/md1 --add /dev/sda2
+mdadm /dev/md2 --add /dev/sda5
+mdadm /dev/md3 --add /dev/sda6
+mdadm /dev/md4 --add /dev/sda7
+mdadm /dev/md5 --add /dev/sda8
+</code></pre><p>Теперь остается только дождаться окончания синхронизации массива, а посмотреть состояние можно так:</p><pre><code>cat /proc/mdstat
+</code></pre></div></article><h3 class="read-next-title noselect">Читать далее</h3><ul class="read-next-posts noselect"><li><a href=/ru/post/2011-08-18-debian-update-distro/>Обновление дистрибутива debian до 6 версии</a></li><li><a href=/ru/post/2013-06-20-rails-on-uwsgi/>Запуск ruby on rails на uwsgi на примере redmine</a></li></ul><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2015-05-01-xtradb-quickstart/>Быстрая миграция MySQL на failover cluster</a></div><div class="right pagination-item"><a href=/ru/post/2014-10-24-smokeping/>Мониторинг задержек при помощи smokeping</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>

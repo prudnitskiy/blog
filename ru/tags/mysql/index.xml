@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Mysql on Инфраструктурный блог</title><link>/ru/tags/mysql/</link><description>Инфраструктурный блог (Mysql)</description><generator>Hugo -- gohugo.io</generator><language>ru-ru</language><lastBuildDate>Thu, 21 Apr 2016 00:20:10 +0000</lastBuildDate><atom:link href="/ru/tags/mysql/index.xml" rel="self" type="application/rss+xml"/><item><title>Резервное копироварие mysql с помощью xtrabackup</title><link>/ru/post/2016-04-21-xtrabackup/</link><pubDate>Thu, 21 Apr 2016 00:20:10 +0000</pubDate><guid>/ru/post/2016-04-21-xtrabackup/</guid><description>&lt;p>MySQL - сверх-популярный сервер баз данных. Его используют (или использовали) практически все. Одна из самых популярных задач в системном администрировании - бэкап (и восстановление). Или, как подвид - миграция данных (бэкап + последующее восстановление). Это делают практически все. И практически все используют для mysql_dump, что категорически неправильно и часто просто опасно. В этой статье я расскажу, почему mysql_dump - это плохое решение и что с ним можно сделать.&lt;/p>
+&lt;h2 id="проблема" >
+&lt;div>
+&lt;a href="#%d0%bf%d1%80%d0%be%d0%b1%d0%bb%d0%b5%d0%bc%d0%b0">
+#
+&lt;/a>
+Проблема
+&lt;/div>
+&lt;/h2>
+&lt;p>У mysql_dump есть три основных проблемы - скорость, неконсистентность и блокировки. Все три проблемы проистекают из его архитектуры, так что вылечить их невозможно. Чтобы понять проблемы, опишу алгоритм работы mysql_dump:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>mysql_dump получает список таблиц в базе&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>он проходит по списку по алфавиту (уже опасный момент)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>для каждой таблицы он делает три действия:&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>сначала он снимает структуру. Это очень быстрое действие.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>затем таблица блокируется на запись (целиком)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>после этого mysql_dump выгружает все данные (грубо говоря - делает &lt;code>SELECT * FROM table&lt;/code>)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>все выгруженное отправляется на stdout. Обычно stdout перенаправляется в файл (классическая конструкция: &lt;code>mysql_dump dbname &amp;gt; file.sql&lt;/code>)&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>после того, как сканирование таблицы заканчивается - блокировка снимается и dump переходит к следующей таблице.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>Самая серьезная проблема, которая лежит на поверхности - блокировки. В момент, когда mysql_dump блокирует таблицу - записать в нее что-либо становится невозможно. В лучшем случае изменения в таблице будут накапливаться (если приложение умеет копить изменения и работать с базой асинхронно, как gorm). В худшем случае приложение упадет с ошибкой записи, а пользователь получит фигу в виде ошибки 500. Проблема консистентности лежит глубже, а потому она много опаснее, так как сходу эти грабли неочевидны, а по лбу бьют больно. Рассмотрим пример. У нас есть база, в которой лежит 3 таблицы: &amp;ldquo;affilates&amp;rdquo;, &amp;ldquo;logs&amp;rdquo; и &amp;ldquo;organisations&amp;rdquo;. Таблица logs очень большая. Таблицы affilates и organisations связаны через внешний ключ. Приложение вставляет запись в &amp;ldquo;affilates&amp;rdquo;, а затем - пачку записей в &amp;ldquo;organisations&amp;rdquo; с ключом, указывающим на запись в &amp;ldquo;affilates&amp;rdquo;. По логике работы mysql_dump, первой будет блокирована и сдамплена affilates. Записи в organisations можно вставлять только для уже существующих affilates, целосность данных не нарушается. После того, как affilates закончится и разблокируется, будет заблокирована logs. Как я уже писал, по условиям задачи она у нас большая и копируется, скажем, час (вполне реальный срок для большой таблицы). При этом никто не мешает создать запись в affilates, а потом из organisations сослаться на эту новую запись. Так, как упаковка affilates уже завершена - в дамп новая запись не попадет. После того, как мы упакуем organisations - в organisations образуются записи, ссылающиеся на не существовавшие в момент дампа ключи. И восстановить такой дамп без определенных магических движений будет невозможно. Ну и в качестве бонуса - мы потеряем данные, которые были созданы в процессе дампа, то есть целосность дампа будет на момент &lt;em>начала&lt;/em> операции, а не ее &lt;em>окончания&lt;/em>. Чтобы бороться со всеми этими проблемами и был придуман xtrabackup.&lt;/p>
+&lt;h2 id="установка-и-настройка" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8-%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0">
+#
+&lt;/a>
+установка и настройка
+&lt;/div>
+&lt;/h2>
+&lt;p>xtrabackup - отдельный инструмент от компании percona. Из-за этого в большинстве штатных системных репозиториев он отсутствует - нужно ставить его из репозитория percona. Установка для debian и ubuntu:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>wget https://repo.percona.com/apt/percona-release_0.1-3.&lt;span style="color:#66d9ef">$(&lt;/span>lsb_release -sc&lt;span style="color:#66d9ef">)&lt;/span>_all.deb
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>dpkg -i percona-release_0.1-3.&lt;span style="color:#66d9ef">$(&lt;/span>lsb_release -sc&lt;span style="color:#66d9ef">)&lt;/span>_all.deb
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apt-get update
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>apt-get install percona-xtrabackup&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>То же самое для RHEL-based (CentOS, RedHat, Fedora, ScientificLinux)&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>yum clean all
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>yum makecache
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>yum install -y percona-xtrabackup&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Для удобства работы с xtrabackup (особенно, если хочется с его помощь делать резервные копии автоматически) рекомендуется создать файл-ответчик с паролем администратора сервера. Назовем его, к примеру, /root/.percona. Пример такого файла:&lt;/p>
+&lt;pre>&lt;code>[client]
+user=root
+password=YYYYYYYY
+&lt;/code>&lt;/pre>
+&lt;h2 id="примерение" >
+&lt;div>
+&lt;a href="#%d0%bf%d1%80%d0%b8%d0%bc%d0%b5%d1%80%d0%b5%d0%bd%d0%b8%d0%b5">
+#
+&lt;/a>
+Примерение
+&lt;/div>
+&lt;/h2>
+&lt;h3 id="простой-вариант---резервная-копия-всего-сервера-целиком" >
+&lt;div>
+&lt;a href="#%d0%bf%d1%80%d0%be%d1%81%d1%82%d0%be%d0%b9-%d0%b2%d0%b0%d1%80%d0%b8%d0%b0%d0%bd%d1%82---%d1%80%d0%b5%d0%b7%d0%b5%d1%80%d0%b2%d0%bd%d0%b0%d1%8f-%d0%ba%d0%be%d0%bf%d0%b8%d1%8f-%d0%b2%d1%81%d0%b5%d0%b3%d0%be-%d1%81%d0%b5%d1%80%d0%b2%d0%b5%d1%80%d0%b0-%d1%86%d0%b5%d0%bb%d0%b8%d0%ba%d0%be%d0%bc">
+##
+&lt;/a>
+Простой вариант - резервная копия всего сервера целиком:
+&lt;/div>
+&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp /var/tmp/backup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp --apply-log /var/tmp/backup&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Восстановление выглядит еще проще. Нужно просто остановить процесс mysql и положить файлы в datadir (обычно это /var/lib/mysql/), а затем - запустить mysql обратно. Перед запуском - обязательно сменить права доступа на файлы, чтобы файлами владел владелец процесса mysql:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>service mysql stop
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>rm -rf /var/lib/mysql/*
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>mv /var/tmp/backup/* /var/lib/mysql/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>chown -R mysql:mysql /var/lib/mysql/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>service mysql start&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;h3 id="усложненный-вариант---создаем-mysql-slave-от-имеющегося-мастера" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d0%bb%d0%be%d0%b6%d0%bd%d0%b5%d0%bd%d0%bd%d1%8b%d0%b9-%d0%b2%d0%b0%d1%80%d0%b8%d0%b0%d0%bd%d1%82---%d1%81%d0%be%d0%b7%d0%b4%d0%b0%d0%b5%d0%bc-mysql-slave-%d0%be%d1%82-%d0%b8%d0%bc%d0%b5%d1%8e%d1%89%d0%b5%d0%b3%d0%be%d1%81%d1%8f-%d0%bc%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0">
+##
+&lt;/a>
+Усложненный вариант - создаем mysql slave от имеющегося мастера:
+&lt;/div>
+&lt;/h3>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">#on master&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp /var/tmp/backup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>innobackupex --rsync --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona --no-timestamp --apply-log /var/tmp/backup
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>rsync -rahP /var/tmp/backup NEW.SERVER.IP:/var/tmp/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">#выдадим права для slave, чтобы он мог читать данные из master-сервера:&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>mysql --defaults-file&lt;span style="color:#f92672">=&lt;/span>/root/.percona -Bse &lt;span style="color:#e6db74">&amp;#34;GRANT REPLICATION SLAVE ON *.* TO &amp;#39;replica&amp;#39;@&amp;#39;NEW.SLAVE.SEVER.IP&amp;#39; IDENTIFIED BY &amp;#39;XXXXXXXX&amp;#39;&amp;#34;&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>innobackupex создает специальный файл с информацией о текущем бинлоге и позиции в этом бинлоге. Эта информация необходима для подключения slave - чтобы slave мог знать, с какого точно момента в прошлом была сделана эта копия базы (и начал синхронизацию именно с нужного момента). Файл называется &lt;code>xtrabackup_binlog_info&lt;/code>. Содержимое у него выглядит примерно вот так:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>mariadb-bin.000003 &lt;span style="color:#ae81ff">642&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Подключим slave-сервер к master-серверу. Для этого остановим mysql и подложим в datadir файлы, которые мы скопировали с master:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>service mysql stop
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>rm -rf /var/lib/mysql/*
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>mv /var/tmp/backup/* /var/lib/mysql/
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>chown -R mysql:mysql /var/lib/mysql
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>service mysql start&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Теперь подключим slave к master. Для этого в консоли mysql:&lt;/p>
+&lt;pre>&lt;code>--- на всякий случай почистим остатки старой конфигурации slave.
+--- В принципе их быть не должно.
+STOP SLAVE;
+RESET SLAVE;
+--- настроим подключение к master
+--- log_file и log_pos - из xtrabackup_binlog_info
+CHANGE MASTER TO MASTER_HOST='NEW.MASTER.SERVER.IP',
+MASTER_USER='replica',
+MASTER_PASSWORD='YYYYYYYY',
+MASTER_LOG_FILE='mariadb-bin.000003',
+MASTER_LOG_POS=642;
+--- запустим процесс репликации
+START SLAVE
+--- убедимся, что нет ошибок
+SHOW SLAVE STATUS \G
+&lt;/code>&lt;/pre>
+&lt;h3 id="сложный-вариант---переносим-отдельную-таблицу" >
+&lt;div>
+&lt;a href="#%d1%81%d0%bb%d0%be%d0%b6%d0%bd%d1%8b%d0%b9-%d0%b2%d0%b0%d1%80%d0%b8%d0%b0%d0%bd%d1%82---%d0%bf%d0%b5%d1%80%d0%b5%d0%bd%d0%be%d1%81%d0%b8%d0%bc-%d0%be%d1%82%d0%b4%d0%b5%d0%bb%d1%8c%d0%bd%d1%83%d1%8e-%d1%82%d0%b0%d0%b1%d0%bb%d0%b8%d1%86%d1%83">
+##
+&lt;/a>
+сложный вариант - переносим отдельную таблицу
+&lt;/div>
+&lt;/h3>
+&lt;p>Искушающе простой способ (остановить mysql, подсунуть файлы с таблицей и запустить обратно) - не сработает, техника немного сложнее. Чтобы восстановить таблицу, нужно подготовить таблицу внутри резеврной копии к экспорту:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>xtrabackup --prepare --export --target-dir&lt;span style="color:#f92672">=&lt;/span>/var/tmp/backup&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Теперь нужно создать таблицу с именем экспортируемой таблицы. Структура и содержимое не важны, важно только имя таблицы (имя базы тоже можно не учитывать):&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sql" data-lang="sql">&lt;span style="display:flex;">&lt;span>mysql&lt;span style="color:#f92672">&amp;gt;&lt;/span> &lt;span style="color:#66d9ef">CREATE&lt;/span> &lt;span style="color:#66d9ef">TABLE&lt;/span> ineedtorestore (a int(&lt;span style="color:#ae81ff">11&lt;/span>) &lt;span style="color:#66d9ef">DEFAULT&lt;/span> &lt;span style="color:#66d9ef">NULL&lt;/span>) ENGINE&lt;span style="color:#f92672">=&lt;/span>InnoDB &lt;span style="color:#66d9ef">DEFAULT&lt;/span> CHARSET&lt;span style="color:#f92672">=&lt;/span>latin1;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>mysql&lt;span style="color:#f92672">&amp;gt;&lt;/span> &lt;span style="color:#66d9ef">ALTER&lt;/span> &lt;span style="color:#66d9ef">TABLE&lt;/span> ineedtorestore DISCARD TABLESPACE;&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>Кстати, если при вводе второй таблицы выскочит ошибка &lt;code>ERROR 1030 (HY000): Got error -1 from storage engine&lt;/code>, то нужно включить в my.cnf настройку &lt;code>innodb_file_per_table&lt;/code>.&lt;/p>
+&lt;p>Теперь нужно скопировать файлы с именем таблицы, которую мы будем восстанавливать, в каталог базы и перечитать файлы командой:&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sql" data-lang="sql">&lt;span style="display:flex;">&lt;span>mysql&lt;span style="color:#f92672">&amp;gt;&lt;/span> &lt;span style="color:#66d9ef">ALTER&lt;/span> &lt;span style="color:#66d9ef">TABLE&lt;/span> ineedtorestore IMPORT TABLESPACE;&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>
+&lt;p>После этого мы получим новую таблицу из бэкапа.&lt;/p></description></item><item><title>Отслеживаем PHP с помощью PINBA на debian</title><link>/ru/post/2015-11-26-pinba/</link><pubDate>Thu, 26 Nov 2015 16:21:06 +0000</pubDate><guid>/ru/post/2015-11-26-pinba/</guid><description>&lt;p>PHP - исключительно популярный язык программирования, до сих пор огромное количество проектов пишется именно на нем. Язык ругают за отвратительный дизайн, неудобный синтаксис, кривое поведение в спорных случаях, отсутствие нормальных средств отладки - но его популярность это никак не снижает. Самое страшное для админа - ситуация, когда на сильно нагруженном проекте начинает тормозить код. Стандартные средства отладки (xprof, xdebug) роняют производительность языка в яму (накладные расходы - вплоть до пятикратного падения скорости), и как отлаживать сложный код на живую - совершенно неясно. Именно для борьбы с такими проблемами придумана PINBA - расширение для мониторинга скорости кода. Тут я расскажу, как установить PINBA (клиент, сервер и интерфейс) на debian и что с ними потом делать.&lt;/p>
+&lt;h2 id="как-это-работает" >
+&lt;div>
+&lt;a href="#%d0%ba%d0%b0%d0%ba-%d1%8d%d1%82%d0%be-%d1%80%d0%b0%d0%b1%d0%be%d1%82%d0%b0%d0%b5%d1%82">
+#
+&lt;/a>
+Как это работает
+&lt;/div>
+&lt;/h2>
+&lt;p>В отличае от XProf PINBA практически не замедляет работу скрипта. В базовом варианте она не требует никакой модификации PHP кода и никак на его выполнение не влияет. Устройство очень простое, штатно PINBA состоит из двух частей. Во-первых - это PHP extenstion (pinba.so), который отслеживает время выполнения скрипта (а так же - адрес скрипта и URL, нагрузку на CPU, память и код завершения). По окончании выполнения запроса он отправляет данные на сервер pinba. Сервер - это MySQL, собранный со специальным плагином (libpinba.so). Сервер принимает на определенном порту UDP-датаграммы и складывает их в базу. Интерфейсом для чтения статистики служит MySQL, что позволяет сравнительно легко анализировать данные и писать к ним свои интерфейсы. Важно, что php extension (генератор) не проверяет целостность отправленных данных или качество их доставки - он просто считает и отправляет.&lt;/p>
+&lt;p>Вот как будет выглядеть наша инсталляция:&lt;/p>
+&lt;p>&lt;img src="https://prudnitskiy.pro/media/uploads/pinba.png" alt="https://prudnitskiy.pro/media/uploads/pinba.png" title="схема инсталляции">&lt;/p>
+&lt;h2 id="установка-клиент" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%ba%d0%bb%d0%b8%d0%b5%d0%bd%d1%82">
+#
+&lt;/a>
+Установка: клиент
+&lt;/div>
+&lt;/h2>
+&lt;p>В debian репозитории DotDeb есть нужный нам клиент (генератор статистики) и проще всего его прямо оттуда и поставить. Если у вас еще не установлен DotDeb - вот &lt;a href="https://www.dotdeb.org/instructions/" title="инструкция">инструкция&lt;/a>. После этого просто ставим пакет:&lt;/p>
+&lt;pre>&lt;code>apt-get install -y php5-pinba
+&lt;/code>&lt;/pre>
+&lt;p>И настраиваем его, поправив файл /etc/php5/mods-available/pinba.ini&lt;/p>
+&lt;pre>&lt;code>extension=pinba.so
+pinba.enabled=1
+pinba.server=172.16.10.10:30002
+&lt;/code>&lt;/pre>
+&lt;p>В этом примере предполагается, что сервер, собирающий статистику у нас имеет адрес 172.16.10.10 и порт 30002. После этого перезапускаем php и установка клиента на этом закончена.&lt;/p>
+&lt;h2 id="установка-сервер" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d1%81%d0%b5%d1%80%d0%b2%d0%b5%d1%80">
+#
+&lt;/a>
+Установка: сервер
+&lt;/div>
+&lt;/h2>
+&lt;p>С установкой сервера все несколько сложнее, так как пакет pinba-server есть только у dotdeb и он сломан. Его прийдется собирать из исходного кода. Для начала на сервер статистики поставим сам mysql. Это должен быть именно стандартный mysql, а не maria или percona:&lt;/p>
+&lt;pre>&lt;code>apt-get install mysql-server-5.6 mysql-client-5.6 libmysqlclient18 libmysqlclient18-dev
+&lt;/code>&lt;/pre>
+&lt;p>Теперь поставим инструменты разработки, они потребуются нам, чтобы собрать пакет:&lt;/p>
+&lt;pre>&lt;code>apt-get install build-essential protobuf-compiler libmysqlclient-dev \
+libjudydebian1 libevent-dev libjudy-dev git libevent-2.0-5 libtool \
+libevent-core-2.0-5 libevent-extra-2.0-5 libevent-openssl-2.0-5 \
+libevent-pthreads-2.0-5 libprotobuf-dev libprotobuf-lite7 libprotobuf7 git-core
+&lt;/code>&lt;/pre>
+&lt;p>Переходим в tmp, выгружаем код pinba engine (сервер статистики) и исходный код mysql server:&lt;/p>
+&lt;pre>&lt;code>cd /var/tmp
+git clone 'https://github.com/tony2001/pinba_engine'
+apt-get source mysql-server
+&lt;/code>&lt;/pre>
+&lt;p>Нам потребуется header-file от существующего mysql-сервера, скопируем. Я не знаю, какая версия mysql-server будет у вас, у меня это mysql-5.6-5.6.25.&lt;/p>
+&lt;pre>&lt;code> cp '/usr/include/mysql/mysql_version.h' /var/tmp/mysql-5.6-5.6.25/include/
+cp '/usr/include/mysql/my_config.h' /var/tmp/mysql-5.6-5.6.25/include/
+&lt;/code>&lt;/pre>
+&lt;p>Нам нужно узнать текущие опции сборки mysql:&lt;/p>
+&lt;pre>&lt;code>OPTIONS=&amp;quot;$(VISUAL=\&amp;quot;$(which 'cat')\&amp;quot; mysqlbug | grep 'Configured with' | sed -e 's/.*configure -v //')&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Соберем модуль:&lt;/p>
+&lt;pre>&lt;code>cd pinba_engine
+./buildconf.sh
+./configure ${OPTIONS} \
+--with-mysql='${MYSQL_SOURCES}' \
+--with-judy \
+--with-protobuf \
+--with-event \
+--libdir='/usr/lib/mysql/plugin/'
+make
+make install
+&lt;/code>&lt;/pre>
+&lt;p>Библиотека собрана, теперь можно установить плагин на сервер и создать базу, где мы будем хранить статистику:&lt;/p>
+&lt;pre>&lt;code>mysql --execute=&amp;quot;INSTALL PLUGIN pinba SONAME 'libpinba_engine.so';&amp;quot; --user=root
+mysql --execute=&amp;quot;CREATE DATABASE pinba DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_unicode_ci;&amp;quot; --user=root
+mysql --user=root 'pinba' &amp;lt; '/tmp/pinba_engine/default_tables.sql'
+mysql --user=root --execute=&amp;quot;grant all on pinba.* to pinbauser@localhost identified by 'Hkx77jg8t6zGw6J5'&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь сообщим серверу настройки pinba. Для этого поправим /etc/mysql/my.cnf. В секции [mysqld] добавим следующее:&lt;/p>
+&lt;pre>&lt;code>pinba_port = 30002
+pinba_address = 172.16.10.10
+pinba_stats_gathering_period = 10000
+pinba_stats_history = 900
+pinba_temp_pool_size = 10000
+pinba_request_pool_size = 10000
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы изменения вступили в силу - надо перезапустить mysql. Разумеется, порт UDP/30002 не должен быть заблокирован в firewall. Настройка сервера на этом закончена, будемт ставить интерфейс.&lt;/p>
+&lt;h2 id="установка-интерфейс" >
+&lt;div>
+&lt;a href="#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%b8%d0%bd%d1%82%d0%b5%d1%80%d1%84%d0%b5%d0%b9%d1%81">
+#
+&lt;/a>
+Установка: интерфейс
+&lt;/div>
+&lt;/h2>
+&lt;p>Эту роль у нас будет выполнять Intaro&amp;rsquo;s pinboard. Интерфейс довольно простой, но удобный и симпатичный. В принципе, его можно поставить на любой сервер, с которого есть доступ к mysql, в моем примере это будет тот же сервер, куда мы собираем статистику. Для работы pinboard потребуется nginx, php5 (версии не менее 5.5) и php composer. Установим:&lt;/p>
+&lt;pre>&lt;code>apt-get install -y php5-cli php5-common php5-curl php5-fpm php5-gd php5-mysql nginx-full
+curl -sS https://getcomposer.org/installer | php
+&lt;/code>&lt;/pre>
+&lt;p>Выгрузим код:&lt;/p>
+&lt;pre>&lt;code>cd /var/www
+git clone git://github.com/intaro/pinboard.git --branch=v1.5.2
+&lt;/code>&lt;/pre>
+&lt;p>Установим зависимости:&lt;/p>
+&lt;pre>&lt;code>cd pinboard
+php composer.phar install
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы интерфейс знал адрес и параметры соединения с базой, поправим настройки в файле &amp;lsquo;config/parameters.yml&amp;rsquo;:&lt;/p>
+&lt;pre>&lt;code>db:
+host: 127.0.0.1
+name: pinba
+user: pinbauser
+pass: Hkx77jg8t6zGw6J5
+&lt;/code>&lt;/pre>
+&lt;p>остальное менять не нужно. Мигрируем базу:&lt;/p>
+&lt;pre>&lt;code>./console migrations:migrate
+&lt;/code>&lt;/pre>
+&lt;p>Добавляем задание в крон для агрегации данных:&lt;/p>
+&lt;pre>&lt;code>./console register-crontab
+&lt;/code>&lt;/pre>
+&lt;p>Теперь осталось настроить nginx. Для этого создадим файл /etc/nginx/sites-enabled/pinba со следующим содержанием:&lt;/p>
+&lt;pre>&lt;code>server {
+listen 80;
+server_name pinba.ourdomian;
+access_log /var/log/nginx/pinba.access.log;
+error_log /var/log/nginx/pinba.error.log;
+root /var/www/pinboard/web;
+location = / {
+try_files @site @site;
+}
+location / {
+try_files $uri $uri/ @site;
+}
+location ~ \.php$ {
+return 404;
+}
+location @site {
+fastcgi_pass unix:///var/run/php5-fpm.sock;
+include fastcgi_params;
+fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+}
+location ~ /\.(ht|svn|git) {
+deny all;
+}
+}
+&lt;/code>&lt;/pre>
+&lt;p>Теперь достаточно просто перезапустить nginx и можно пользоваться нашим новым интерфейсом. Важно понимать, что статистика агрегируется раз в N минут (частоту спросит сам pinboard при миграции данных), но данные в секции live доступны в любой момент.&lt;/p></description></item><item><title>Быстрая миграция MySQL на failover cluster</title><link>/ru/post/2015-05-01-xtradb-quickstart/</link><pubDate>Fri, 01 May 2015 22:13:22 +0000</pubDate><guid>/ru/post/2015-05-01-xtradb-quickstart/</guid><description>&lt;p>MySQL - одна из самых ходовых, распространенных и простых во внедрении СУБД. Этот СУБД использует, наверное, половина всех проектов веба. Исключительная простота установки и внедрения, распространенность, поддержка &amp;ldquo;из коробки&amp;rdquo; во всех ходовых языках программирования для веб (perl, PHP, ruby, python, JS/node). Из-за мнимой простоты внедрения на потенциальные проблемы внедрения внимания просто не обращают - 90% проектов не доживут до того момента, когда заботливо разложенные авторами MySQL грабли больно ударят по лбу.&lt;/p>
+&lt;p>Одна из серьезных грабель MySQL - серьезные проблемы с производительностью и надежностью. Тюнинг MySQL сложен, так, как изначально MySQL задуман для быстрого внедрения в небольшом проекте. Кроме того, имея серьезный, высоконагруженный проект, хочется снизить риск отказа базы данных (согласно закону Паркинсона, все, что может сломаться - сломается, и частно - в самый неудачный момент). В данной статье я распишу, как мигрировать одиночный MySQL на кластер из трех равновесных машин (для надежности - отказ любого сервера не оставит вас без базы) с автоматическим распределением нагрузки.&lt;/p>
+&lt;p>В данном примере участвуют три сервера:&lt;/p>
+&lt;ul>
+&lt;li>db1 (IP 10.10.171.2)&lt;/li>
+&lt;li>db2 (IP 10.10.171.3)&lt;/li>
+&lt;li>db3 (IP 10.10.171.4)&lt;/li>
+&lt;/ul>
+&lt;p>DB1 - &amp;ldquo;старый&amp;rdquo; сервер с обычным MySQL, данные с которого мигрируют в кластер. DB2 и DB3, соответственно - свежие сервера. В принципе, установка свежего кластера &amp;ldquo;с нуля&amp;rdquo; (без данных) - не будет отличаться практически ничем. Изначально статья ориентирована на Debian, но для CentOS сделаны необходимые отступления, благо отличий немного.&lt;/p>
+&lt;h2 id="немного-истории" >
+&lt;div>
+&lt;a href="#%d0%bd%d0%b5%d0%bc%d0%bd%d0%be%d0%b3%d0%be-%d0%b8%d1%81%d1%82%d0%be%d1%80%d0%b8%d0%b8">
+#
+&lt;/a>
+Немного истории
+&lt;/div>
+&lt;/h2>
+&lt;p>Percona XtraDB - это ответвление (fork) изначального MySQL, созданного Монти Видениусом. В какой-то момент Видениус продал свой проект, и это сильно затормозило развитие проекта. Так, как проект обладал спорным качеством когда и был (с другой стороны) очень популярен - появилось огромное количество патчей, которые расширяли, углубляли и ускоряли кодовую базу. Самыми известным были набор патчей от google и набор патчей от Петра Зайцева. Последний создал компанию Percona, в рамках которой оптимизирует MySQL и консультирует пользователей этой системы. Он же выпускает свой форк MySQL, в котором собирает удачно работающие патчи. Как следствие - percona sql server с одной стороны надежнее, с другой - функциональнее, да и просто быстрее. В определенный момент был выпущен специальный дистрибутив XtraDB Cluster с набором библиотек Gallera Cluster - очень удачного и производительного решения для кластеризации MySQL&lt;/p>
+&lt;h2 id="подготовка" >
+&lt;div>
+&lt;a href="#%d0%bf%d0%be%d0%b4%d0%b3%d0%be%d1%82%d0%be%d0%b2%d0%ba%d0%b0">
+#
+&lt;/a>
+Подготовка
+&lt;/div>
+&lt;/h2>
+&lt;p>XtraDB cluster не входит в стандартные дистрибутивы ОС (ни для Debian, ни для CentOS), по этому, нужно добавить дистрибутивы&lt;/p>
+&lt;p>Для Debian (все операции проводим от root):&lt;/p>
+&lt;pre>&lt;code>#получаем ключи репозитория
+apt-key adv --keyserver keys.gnupg.net --recv-keys 1C4CBDCDCD2EFD2A
+#добавляем в файл /etc/apt/sources.list следующие строки:
+deb http://repo.percona.com/apt VERSION main
+deb-src http://repo.percona.com/apt VERSION main
+#где VERSION - версия вашего debian:
+# 6.0 - squeeze
+# 7.0 - wheezy
+# 8.0 - jessie
+#обновляем кеш:
+apt-get update
+&lt;/code>&lt;/pre>
+&lt;p>Для CentOS:&lt;/p>
+&lt;pre>&lt;code>#добавляем репозиторий
+yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
+#на всякий случай - обновляем кеш
+yum clean all &amp;amp;&amp;amp; yum makecache
+&lt;/code>&lt;/pre>
+&lt;p>теперь установим xtradb.&lt;/p>
+&lt;p>&lt;strong>В момент установки MySQL server будет удален из системы. Вы НЕ потеряете базы и данные в них, но сервис не будет работать до тех пор, пока вы не закончите настройку&lt;/strong>&lt;/p>
+&lt;pre>&lt;code>#debian
+apt-get install -y percona-xtradb-cluster-55
+#centos
+yum install -y Percona-XtraDB-Cluster-55
+&lt;/code>&lt;/pre>
+&lt;p>Чтобы члены кластера могли общаться друг с другом, на каждом сервере нужно разрешить доступ со всех членов кластера по портам &lt;em>4444&lt;/em> и &lt;em>4567&lt;/em>. Кроме того, со всех серверов, которые будут использовать кластер БД нужно разрешить доступ на порт &lt;em>3306&lt;/em> (штатный порт mysq) и &lt;em>9199&lt;/em> (об этом - далее).&lt;/p>
+&lt;h2 id="настройка-кластера" >
+&lt;div>
+&lt;a href="#%d0%bd%d0%b0%d1%81%d1%82%d1%80%d0%be%d0%b9%d0%ba%d0%b0-%d0%ba%d0%bb%d0%b0%d1%81%d1%82%d0%b5%d1%80%d0%b0">
+#
+&lt;/a>
+Настройка кластера
+&lt;/div>
+&lt;/h2>
+&lt;p>Добавим в /etc/my.cnf (в debian он может называться /etc/mysql/my.cnf - если он уже есть - правим его!) следующие строки:&lt;/p>
+&lt;pre>&lt;code>[mysqld]
+#расположение физических файлов баз
+datadir=/var/lib/mysql
+#пользователь, от которого запускается сервер
+user=mysql
+#путь к библиотеке синхронизации, перед добавлением убедитесь, что файл по этому пути существует
+wsrep_provider=/usr/lib64/libgalera_smm.so
+#список IP всех членов кластера. Параметр идентичен на всех узлах кластера
+wsrep_cluster_address=gcomm://10.10.171.2,10.10.171.3,10.10.171.4
+binlog_format=ROW
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+#IP адрес узла, на котором мы настраиваем кластер
+wsrep_node_address=10.10.171.2
+wsrep_sst_method=xtrabackup-v2
+#имя кластера. Уникальное для инсталляции, но единое для всех узлов
+wsrep_cluster_name=axsystems_xtradb_test
+#имя пользователя и пароль для синхронизации
+wsrep_sst_auth=&amp;quot;syncuser:Ttm3wsbPE72Km96R&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>запустим первый узел в кластере. Если вы мигрируете кластер с существующего MySQL на percona - это надо делать на старом сервере, где данные. Этот узел в кластере будет образцом - остальные заберут с него данные&lt;/p>
+&lt;pre>&lt;code>/etc/init.d/mysql bootstrap-pxc
+&lt;/code>&lt;/pre>
+&lt;p>создадим пользователя для синхронизации:&lt;/p>
+&lt;pre>&lt;code>mysql@db1&amp;gt; CREATE USER 'syncuser'@'localhost' IDENTIFIED BY 'Ttm3wsbPE72Km96R';
+mysql@db1&amp;gt; GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT ON *.* TO 'syncuser'@'localhost';
+mysql@db1&amp;gt; FLUSH PRIVILEGES;
+&lt;/code>&lt;/pre>
+&lt;p>скопируем конфигурацию на DB2, и внесем необходимые изменения:&lt;/p>
+&lt;pre>&lt;code>[mysqld]
+#расположение физических файлов баз
+datadir=/var/lib/mysql
+#пользователь, от которого запускается сервер
+user=mysql
+#путь к библиотеке синхронизации, перед добавлением убедитесь, что файл по этому пути существует
+wsrep_provider=/usr/lib64/libgalera_smm.so
+#список IP всех членов кластера. Параметр идентичен на всех узлах кластера
+wsrep_cluster_address=gcomm://10.10.171.2,10.10.171.3,10.10.171.4
+binlog_format=ROW
+default_storage_engine=InnoDB
+innodb_autoinc_lock_mode=2
+#IP адрес узла, на котором мы настраиваем кластер.
+wsrep_node_address=10.10.171.3
+wsrep_sst_method=xtrabackup-v2
+#имя кластера. Уникальное для инсталляции, но единое для всех узлов
+wsrep_cluster_name=axsystems_xtradb_test
+#имя пользователя и пароль для синхронизации
+wsrep_sst_auth=&amp;quot;syncuser:Ttm3wsbPE72Km96R&amp;quot;
+&lt;/code>&lt;/pre>
+&lt;p>Теперь подключим новый узел в кластер:&lt;/p>
+&lt;pre>&lt;code>/etc/init.d/mysql start
+&lt;/code>&lt;/pre>
+&lt;p>Запускаться он будет долго, так как ему надо снять копию с работающего уже члена кластера. К слову - в этот момент кластер уже работает и ваши пользователи могут использовать базу.&lt;/p>
+&lt;p>Как только mysql на втором сервере стартует успешно - можно проверить состояние кластера. Для этого в mysql консоли любого сервера пишем:&lt;/p>
+&lt;pre>&lt;code>mysql&amp;gt; show status like 'wsrep%';
++----------------------------+--------------------------------------+
+| Variable_name | Value |
++----------------------------+--------------------------------------+
+| wsrep_local_state_uuid | c2883338-834d-11e2-0800-03c9c68e41ec |
+[...]
+| wsrep_local_state | 4 |
+| wsrep_local_state_comment | Synced |
+[...]
+| wsrep_cluster_size | 2 |
+| wsrep_cluster_status | Primary |
+| wsrep_connected | ON |
+[...]
+| wsrep_ready | ON |
++----------------------------+--------------------------------------+
+40 rows in set (0.01 sec)
+&lt;/code>&lt;/pre>
+&lt;p>как видно - status - synced, размер кластера - 2 (узла). Все работает, по аналогии добавляем третий узел (не забудьте поменять wsrep_node_address в настройках!)&lt;/p>
+&lt;h2 id="failover-доступ" >
+&lt;div>
+&lt;a href="#failover-%d0%b4%d0%be%d1%81%d1%82%d1%83%d0%bf">
+#
+&lt;/a>
+failover-доступ
+&lt;/div>
+&lt;/h2>
+&lt;p>Большая часть современного ПО, работающая с MySQL, не может нормально обрабатывать несколько серверов. По этому мы будем использовать haproxy для распределения нагрузки. В этом примере haproxy ставится на каждый сервер, который использует mysql. HAProxy есть в базовом репозитории любого современного дистрибутива, так что просто ставим пакет:&lt;/p>
+&lt;pre>&lt;code>#debian
+apt-get install -y haproxy
+#centos
+yum install -y haproxy
+&lt;/code>&lt;/pre>
+&lt;p>Теперь настраиваем его. Пишем в конфигурацию /etc/haproxy/haproxy.cfg:&lt;/p>
+&lt;pre>&lt;code>global
+log 127.0.0.1 local2
+chroot /var/lib/haproxy
+pidfile /var/run/haproxy.pid
+maxconn 4000
+user haproxy
+group haproxy
+daemon
+#stats socket /var/lib/haproxy/stats
+defaults
+log global
+mode http
+option tcplog
+option dontlognull
+retries 3
+redispatch
+maxconn 2000
+contimeout 5000
+clitimeout 50000
+srvtimeout 50000
+#webui со статистикой. Обязательно используйте пароль (или закройте доступ к порту)
+listen stats 0.0.0.0:8086
+mode http
+stats enable
+stats uri /
+stats realm &amp;quot;balancer&amp;quot;
+stats auth logan:q6SJYy5cB3KKy34z
+#собственно, mysql кластер
+listen mysql-cluster 0.0.0.0:3306
+mode tcp
+balance roundrobin
+option httpchk
+server db1 10.10.171.2:3306 check port 9199 inter 12000 rise 3 fall 3
+server db2 10.10.171.3:3306 check port 9199 inter 12000 rise 3 fall 3
+server db3 10.10.171.4:3306 check port 9199 inter 12000 rise 3 fall 3
+&lt;/code>&lt;/pre>
+&lt;p>Порт 9199 haproxy будет использовать, чтобы убедится, что член кластера работоспособен и функционирует, как нужно. Сам XtraDB кластер не ждет соединений на 9199 порту. Нам потребуется специальный сервис, который будет локально проверять работу xtradb-cluster сервера для HAProxy. Сервис проверки очень прост, это не демон, так что его будет запускать супердемон xinetd. Вернемся на db1. Для начала - установим xinetd:&lt;/p>
+&lt;pre>&lt;code>#centos
+yum install -y xinetd
+#debian
+apt-get install -y xinetd
+&lt;/code>&lt;/pre>
+&lt;p>Создадим там файл /etc/xinetd.d/mysqlchk со следующим содержимым:&lt;/p>
+&lt;pre>&lt;code>service mysqlchk
+{
+disable = no
+flags = REUSE
+socket_type = stream
+port = 9199
+wait = no
+user = nobody
+server = /usr/bin/clustercheck
+server_args = syncuser Ttm3wsbPE72Km96R 1 /var/tmp/mss.log 0 /etc/my.cnf
+log_on_failure += USERID
+only_from = 0.0.0.0/0
+per_source = UNLIMITED
+}
+&lt;/code>&lt;/pre>
+&lt;p>Немного подробностей о том, что тут написано. Главные настройки - это server_args. Они позиционные, так что очередность путать нельзя:&lt;/p>
+&lt;ul>
+&lt;li>имя пользователя для проверки. Нужны права CONNECT и REPLICATION CLIENT&lt;/li>
+&lt;li>пароль&lt;/li>
+&lt;li>отвечать, что сервер доступен, если он - донор (то есть остальные сервера в данный момент синхронизируются с него)&lt;/li>
+&lt;li>путь к файлу журнала&lt;/li>
+&lt;li>отвечать, что сервер &lt;em>не доступен&lt;/em>, если он сейчас readonly (синхронизируется или заблокирован). Если поставить 1 - haproxy будет считать сервер в статусе readonly доступным&lt;/li>
+&lt;li>путь к my.cnf. В некоторых версиях debian он находится в /etc/mysql/my.cnf&lt;/li>
+&lt;/ul>
+&lt;p>пользователь и пароль в директиве server_args - из конфигурации mysql (выше). Обратите внимание на путь к my.cnf, в некоторых версиях debian он находится в /etc/mysql/my.cnf&lt;/p>
+&lt;p>Так же нужно добавить следующую строку в /etc/services:&lt;/p>
+&lt;pre>&lt;code>mysqlchk 9199/tcp #mysqlcheck
+&lt;/code>&lt;/pre>
+&lt;p>После этого можно перезапустить xinetd. Проверим, что сервис проверки работает, как задумано:&lt;/p>
+&lt;pre>&lt;code>db1&amp;gt; telnet 127.0.0.1 9199
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Connection: close
+Content-Length: 40
+Percona XtraDB Cluster Node is synced.
+Connection closed by foreign host.
+&lt;/code>&lt;/pre>
+&lt;p>Эту последовательность действий надо повторить на всех машинах - членах кластера.&lt;/p>
+&lt;p>Теперь можно спокойно перезапустить haproxy, зайти на страницу статистики (в данном примере - http://[SERVER_IP]:8086/) и убедится, что haproxy видит все сервера кластера. После этого можно спокойно прописывать на сервере-пользователе БД локальный адрес 127.0.0.1, порт и все остальные настройки - без изменений - и теперь у вас есть отказоустойчивый кластер баз mysql&lt;/p>
+&lt;h2 id="послесловие" >
+&lt;div>
+&lt;a href="#%d0%bf%d0%be%d1%81%d0%bb%d0%b5%d1%81%d0%bb%d0%be%d0%b2%d0%b8%d0%b5">
+#
+&lt;/a>
+послесловие
+&lt;/div>
+&lt;/h2>
+&lt;p>Не смотря на то, что данное решение кажется &amp;ldquo;идеальным решением&amp;rdquo;, у него есть и слабые стороны. На всякий случай, опишу их:&lt;/p>
+&lt;ul>
+&lt;li>Ведение кластеризации требует накладных расходов. Они очень незначительны (по моим замерам не получалось более 2% от базовой производительности сервера). Частично это нивелируется тем, что Percona быстрее, чем штатный MySQL, частично - тем, что мы используем балансировку нагрузки. Однако не упомянуть об этом было бы нечестно. Накладные расходы растут с увеличением количества узлов в кластере.&lt;/li>
+&lt;li>Percona Xtradb cluster крайне плохо поддерживает таблицы типа MyISAM. Об этом даже пишут в официальной документации. Если вам нужен MyISAM - я очень не рекомендую использовать xtradb cluster&lt;/li>
+&lt;li>Данная конфигурация отвечает исключительно за репликацию, шардирование (разделение данных между серверами в зависимости от содержимого, например - пользователи с четным ID - на правый сервер, с нечетным - на левый) - тут отсутствует.&lt;/li>
+&lt;/ul>
+&lt;h3 id="в-случае-аварии" >
+&lt;div>
+&lt;a href="#%d0%b2-%d1%81%d0%bb%d1%83%d1%87%d0%b0%d0%b5-%d0%b0%d0%b2%d0%b0%d1%80%d0%b8%d0%b8">
+##
+&lt;/a>
+в случае аварии
+&lt;/div>
+&lt;/h3>
+&lt;p>Если что-то из описанного в статье работает не так, как описано (или не работает вовсе) - попробуйте проверить ваши последние шаги. Самые частые проблемы, с которыми сталкивался я, это:&lt;/p>
+&lt;ul>
+&lt;li>Закрытые порты не дают узлам кластера общаться между собой (4444 используется для общения и координации, 4567 - для передачи данных свеже добавленным узлам).&lt;/li>
+&lt;li>Проблемы с линковкой (ошибка xtrabackup is exited: Perl:DBD is not installed, при этом Perl:DBD в системе есть). Это решается простым удалением всех пакетов, связанных с MySQL и установкой XtraDB cluster заново.&lt;/li>
+&lt;li>Подавляющее большинство ошибок можно диагностировать чтением log-файла. /var/log/mysql.log (для debian) или /var/log/mysqld.log (centos) - ваш друг.&lt;/li>
+&lt;/ul></description></item></channel></rss>

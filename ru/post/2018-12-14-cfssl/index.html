@@ -1,0 +1,294 @@
+<!doctype html><html lang=ru-ru data-theme><head><meta charset=utf-8><meta name=HandheldFriendly content="True"><meta name=viewport content="width=device-width,initial-scale=1"><meta name=referrer content="no-referrer-when-downgrade"><title>CFSS: TLS CA со скоростью молнии - Инфраструктурный блог</title>
+<meta name=description content="Исключительно простой и быстрый способ собрать себе SSL CA"><link rel=icon type=image/x-icon href=https://prudnitskiy.pro/favicon.ico><link rel=apple-touch-icon-precomposed href=https://prudnitskiy.pro/favicon.png><style>body{visibility:hidden;opacity:0}</style><noscript><style>body{visibility:visible;opacity:1}</style></noscript><link rel=stylesheet href=/css/style.min.44f8240afd8df81b52565c4119ac5ae247776c77fc6d7ccf6e101a6c98abfa7a.css integrity="sha256-RPgkCv2N+BtSVlxBGaxa4kd3bHf8bXzPbhAabJir+no="><link rel=stylesheet href=/css/style.min.c4c04b3ef88e3d619ad4c7ee5e03048422bc55c4fefdc1f07657c1133670aa22.css integrity="sha256-xMBLPviOPWGa1MfuXgMEhCK8VcT+/cHwdlfBEzZwqiI="><link rel=stylesheet href=/css/style.min.21c5d8fe0a79d623b0adc1ce4bd4f6dd2c05cd939c9aaaa966ba7186b1464f4d.css integrity="sha256-IcXY/gp51iOwrcHOS9T23SwFzZOcmqqpZrpxhrFGT00="><script src=/js/script.min.08f04d96386c73c9bf4d160333f8f448c05a6e01c06770542ee0e013954ce930.js type=text/javascript integrity="sha256-CPBNljhsc8m/TRYDM/j0SMBabgHAZ3BULuDgE5VM6TA="></script></head><body><a class=skip-main href=#main>Перейти к основному контенту</a><div class=container><header class=common-header><div class=header-top><div class=header-top-left><h1 class="site-title noselect"><a href=/ru>Инфраструктурный блог</a></h1><div class=theme-switcher><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-sun-high"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.828 14.828A4 4 0 109.172 9.172a4 4 0 005.656 5.656z"/><path d="M6.343 17.657l-1.414 1.414"/><path d="M6.343 6.343 4.929 4.929"/><path d="M17.657 6.343l1.414-1.414"/><path d="M17.657 17.657l1.414 1.414"/><path d="M4 12H2"/><path d="M12 4V2"/><path d="M20 12h2"/><path d="M12 20v2"/></svg></span></div><script>const STORAGE_KEY="user-color-scheme",defaultTheme="auto";let currentTheme,switchButton,autoDefinedScheme=window.matchMedia("(prefers-color-scheme: dark)");function switchTheme(){currentTheme=currentTheme==="dark"?"light":"dark",localStorage&&localStorage.setItem(STORAGE_KEY,currentTheme),document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))}const autoChangeScheme=e=>{currentTheme=e.matches?"dark":"light",document.documentElement.setAttribute("data-theme",currentTheme),changeGiscusTheme(currentTheme),document.body.dispatchEvent(new CustomEvent(currentTheme+"-theme-set"))};document.addEventListener("DOMContentLoaded",function(){switchButton=document.querySelector(".theme-switcher"),currentTheme=detectCurrentScheme(),currentTheme==="auto"?(autoChangeScheme(autoDefinedScheme),autoDefinedScheme.addListener(autoChangeScheme)):document.documentElement.setAttribute("data-theme",currentTheme),switchButton&&switchButton.addEventListener("click",switchTheme,!1),showContent()});function detectCurrentScheme(){return localStorage!==null&&localStorage.getItem(STORAGE_KEY)?localStorage.getItem(STORAGE_KEY):defaultTheme?defaultTheme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}function showContent(){document.body.style.visibility="visible",document.body.style.opacity=1}function changeGiscusTheme(e){function t(e){const t=document.querySelector("iframe.giscus-frame");if(!t)return;t.contentWindow.postMessage({giscus:e},"https://giscus.app")}t({setConfig:{theme:e}})}</script><ul class="social-icons noselect"><li><a href=https://github.com/prudnitskiy title=Github rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-github"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></span></a></li><li><a href=https://www.linkedin.com/in/prudnitskiy title=Linkedin rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-brand-linkedin"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M8 11v5"/><path d="M8 8v.01"/><path d="M12 16v-5"/><path d="M16 16v-3a2 2 0 00-4 0"/></svg></span></a></li><li><a href=/ru/index.xml title=RSS rel=me><span class=inline-svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-rss"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path d="M4 4a16 16 0 0116 16"/><path d="M4 11a9 9 0 019 9"/></svg></span></a></li></ul></div><div class=header-top-right></div></div><nav class=noselect><a href=https://prudnitskiy.pro/ru/about/ title=About>About</a>
+<a href=https://prudnitskiy.pro/ru/ title=Blog>Blog</a></nav></header><main id=main tabindex=-1><article class="post h-entry"><div class=post-header><header><h1 class="p-name post-title">CFSS: TLS CA со скоростью молнии</h1></header><div class="post-info noselect"><div class="post-date dt-published"><time datetime=2018-12-14>2018-12-14</time></div><a class="post-hidden-url u-url" href=/ru/post/2018-12-14-cfssl/>/ru/post/2018-12-14-cfssl/</a>
+<a href=https://prudnitskiy.pro/ class="p-name p-author post-hidden-author h-card" rel=me>map[name:Paul Rudnitskiy]</a><div class=post-taxonomies><ul class=post-tags><li><a href=/ru/tags/ssl/>#Ssl</a></li><li><a href=/ru/tags/tls/>#Tls</a></li><li><a href=/ru/tags/security/>#Security</a></li></ul></div></div></div><details class="toc noselect"><summary>Table of Contents</summary><div class=inner><nav id=TableOfContents><ul><li><a href=#цепочки-доверия>Цепочки доверия</a></li><li><a href=#что-делает-ca-и-из-чего-его-можно-собрать>Что делает CA и из чего его можно собрать</a><ul><li><a href=#openssl-ca>OpenSSL ca</a></li><li><a href=#easyrsa--easyrsav2>EasyRSA / EasyRSAv2</a></li><li><a href=#hasicorp-vault>Hasicorp Vault</a></li><li><a href=#cfssl>CFSSL</a></li></ul></li><li><a href=#самый-простой-случай-bare-ca>Самый простой случай: Bare CA</a></li><li><a href=#подпись-чужого-сертификата>Подпись чужого сертификата</a></li><li><a href=#intermediate-center-of-authorities>Intermediate center of authorities</a></li><li><a href=#выводы>Выводы</a></li></ul></nav></div></details><script>var toc=document.querySelector(".toc");toc&&toc.addEventListener("click",function(){event.target.tagName!=="A"&&(event.preventDefault(),this.open?(this.open=!1,this.classList.remove("expanded")):(this.open=!0,this.classList.add("expanded")))})</script><div class="content e-content"><p>TLS - один из самых распространенных стандартов шифрования и аутентификации в современном интернете. Используется исключительно широко - взаимодействие с пользователем (HTTPS), межпрограммное общение (RPC over HTTPS, gRPC), даже VPN (OpenVPN) и телефония (SIPoTLS). Он обеспечивает шифрование (симметричным ключом), авторизацию (PKI), проверку целостности переданной информации (HMAC). Важная часть TLS - PKI (инфраструктура публичных ключей). Любой публичный ключ в TLS должен быть подписан (публичный ключ с подписью и набором определенных атрибутов называется сертификатом). Центр сертификации – критически важная часть работы TLS, так как он управляет доверием к приложению или сервису (цепочки доверия). В этой статье я расскажу о том, как запустить свой собственный CA на основе CFSSL. Введение получилось неожиданно большим, так что если вам нужна практика - вам сюда</p><h2 id=цепочки-доверия><div><a href=#%d1%86%d0%b5%d0%bf%d0%be%d1%87%d0%ba%d0%b8-%d0%b4%d0%be%d0%b2%d0%b5%d1%80%d0%b8%d1%8f>#
+</a>Цепочки доверия</div></h2><p>В ассиметричном шифровании каждый сервис имеет два ключа, открытый (публичный) и закрытый (приватный). Из приватного ключа можно легко получить публичный, но обратная операция практически невозможна. Из публичного ключа, добавив в него несколько текстовых полей (атрибутов) - можно создать запрос на сертификат (CSR). Центр сертификации подписывает CSR и таким образом CSR становится сертификатом. Подписью центр сертификации (CA) подтверждает, что:</p><ul><li>сервис, использующий этот сертификат – достоин доверия с точки зрения CA</li><li>цифровая подпись действительна в определенный момент времени (у нее есть ограничения по сроку жизни)</li><li>подписанный CA сертификат можно использовать определенным образом. Возможности использования описаны атрибутами в сертификате. Так, как атрибуты подписываются вместе с самим публичным ключом – их нельзя поменять, это разрушит цифровую подпись.</li></ul><p>Сертификат может быть отозван по определенной причине (например, приватный ключ сервиса был украден). Для того, чтобы приложения (пользователи) узнали о факте отзыва – существует CRL (certificate revocation list). Устроен он сравнительно просто: это текстовый файл, где перечислены уникальные серийные номера сертификатов (SSN) и дата отзыва. Содержимое файла подписано цифровой подписью CA, что исключает подделку.</p><p>Чтобы клиент (приложение) мог доверять центру сертификации – у него должен быть сертификат центра сертификации. Этому сертификату клиент (приложение) доверяет безусловно, а используя этот сертификат – может проверить цельность цифровой подписи любого сертификата, подписанного доверенным центром сертификации.</p><p>Очевидно, что потеря (компрометация) ключа доверенного центра сертификации – это крайне плохо – нужно создать новый ключ после чего заново подписать все сертификаты. Плюс – разослать всем клиентам новый сертификат, а старый пометить, как не подлежащий доверию. Тот, кто украдет ключ центра сертификации – сможет выписывать себе произвольные сертификаты и соединение с таким сервисом будет считаться совершенно безопасным.</p><p>Чтобы избежать этого – IEEE придумали цепочки сертификатов. Сначала создается “корневая пара” из приватного ключа и сертификата. Именно этому сертификату будут доверять клиенты безусловно. Корневой сертификат подписывает сам себе. Затем создается “промежуточная пара”. Ключ промежуточной пары подписывается корневым ключом. Теперь корневой ключ можно положить сейф, залить сейф бетоном и закопать в основании небоскреба – в обозримом будущем он нам не потребуется. Клиентские сертификаты будут подписаны промежуточной парой. Клиент, подключаясь, проверит, что сертификат подписан промежуточным центром сертификации, а сертификат промежуточного центра подписан сертификатом, которому клиент доверяет. Такая конструкция называется цепочкой доверия или цепочкой сертификатов (certificate chain), а обладатель промежуточной пары – промежуточным центром сертификации (intermediate center of authorities). Если произойдет ужасное, и ключ промежуточного центра утечет – мы просто откопаем сейф, вынем из него корневой ключ, подпишем этим ключом новую корневую пару и будем подписывать новые сертификаты уже новой корневой парой. Сертификаты, подписанные скомпрометированным ключом – придется перевыпускать (то есть – подписать заново, новым ключом), но хотя бы не придется заставлять всех клиентов менять рутовый сертификат.</p><h2 id=что-делает-ca-и-из-чего-его-можно-собрать><div><a href=#%d1%87%d1%82%d0%be-%d0%b4%d0%b5%d0%bb%d0%b0%d0%b5%d1%82-ca-%d0%b8-%d0%b8%d0%b7-%d1%87%d0%b5%d0%b3%d0%be-%d0%b5%d0%b3%d0%be-%d0%bc%d0%be%d0%b6%d0%bd%d0%be-%d1%81%d0%be%d0%b1%d1%80%d0%b0%d1%82%d1%8c>#
+</a>Что делает CA и из чего его можно собрать</div></h2><p>Как я уже говорил выше – CA - это пара “приватный ключ + публичный ключ”, в котором приватный ключ создает для сертификатов цифровые подписи. Доступный всем желающим публичный ключ можно использовать для проверки цифровой подписи. При подписании СА должен внести в сертификат уникальный серийный номер подписанного сертификата, а так же – указать срок действия подписи. Хороший центр сертификации должен вести учет выданных сертификатов (то есть - хранить серийные номера всех сертификатов, которые он подписал), а так же – при необходимости создавать CRL – список отозванных сертификатов. Так как TLS сейчас буквально везде – способов создать CA существует множество:</p><h3 id=openssl-ca><div><a href=#openssl-ca>##
+</a>OpenSSL ca</div></h3><p>OpenSSL - это классика реализации SSL (TLS) в xNIX. Состоит из библиотеки (libssl) и утилиты командной строки (openssl). Штука фантастически, невероятно, исключительно сложная. Алгоритмы криптографии в принципе не подарок, а в случае openssl сложнейший С-код набит различными оптимизациями для ускорения работы (шифрование должно работать быстро!). Плюс OpenSSL поддерживается для кучи различных платформ (ОС и процессоров). Ориентация в коде OpenSSL – сложнейшее дело. В 2014 году небольшая правка в коде вызывала уязвимость, известную как “heartbleed” – отправляя специально сформированные пакеты на любой сервис, использующий TLS - можно было читать память, доступную процессу, принимающему пакеты. Чтение было медленным, но результат – сокрушительным: heartbleed позволял вытаскивать внутренние данные работающих программ, читать данные других пользователей, даже воровать приватные ключи приложения.</p><p>Пользовательская сторона OpenSSL тоже не подарок – умеет она много, а документирована при этом просто отвратительно. Достаточно просто сказать, что список только доступных команд к утилите openssl - это 3 страницы текста. А руководства, в общем-то – нет. В случае работы с OpenSSL очень несложно сделать ошибку, из-за которой ваш CA станет небезопасным, а потому я не рекомендую использовать openssl для этого.</p><h3 id=easyrsa--easyrsav2><div><a href=#easyrsa--easyrsav2>##
+</a>EasyRSA / EasyRSAv2</div></h3><p>По сути это вообще не утилита. Это набор shell-скриптов, которые используют все тот же OpenSSL. Это резко облегчает настройку и снижает вероятность ошибки, но – уменьшает гибкость настройки. Плюс скрипты могут ломаться (у них бывает, увы), и в таком случае вам будет очень трудно понять, что именно у вас сломалось, и где. Ибо за милым и простым фасадом из easy-rsa вас ждет кровожадное лицо OpenSSL.</p><h3 id=hasicorp-vault><div><a href=#hasicorp-vault>##
+</a>Hasicorp Vault</div></h3><p>Мощная, удобная утилита для создания и хранения секретов. Секретов самых разных - паролей, токенов. Умеет работать с центрами сертификации в том числе. Прекрасный выбор, если вам нужно построить большую и сложную систему централизованного управления секретами и давать в эту систему ограниченный доступ. Для новичка – очень сложно. Требует поднятия отдельного сервера (где будет работать сервис vault), поднятия отдельного хранилища данных, написания политик доступа в vault. Если вам нужно быстро запустить CA (или несколько, но работать с самим СА будет буквально пара человек) - это явный перебор</p><h3 id=cfssl><div><a href=#cfssl>##
+</a>CFSSL</div></h3><p>То, ради чего статья затевалась. Набор из простых, небольших, понятных утилит для создания и управления CA. Код написан целиком на golang – он простой и легко читается. Так как утилита сравнительно молодая - в ней минимум legacy-кода. Изначально написана и поддерживается компанией CloudFlare - огромным CDN-провайдером. Так как CF активно использует шифрование внутри своей сети – сертификатов ему нужно море, по этому они и написали собственный инструментарий для работы с ними</p><h2 id=самый-простой-случай-bare-ca><div><a href=#%d1%81%d0%b0%d0%bc%d1%8b%d0%b9-%d0%bf%d1%80%d0%be%d1%81%d1%82%d0%be%d0%b9-%d1%81%d0%bb%d1%83%d1%87%d0%b0%d0%b9-bare-ca>#
+</a>Самый простой случай: Bare CA</div></h2><p>Чтобы установить свежую версию cfssl (если у вас нет ее в пакетах) – потребуется go версии 1.10 или выше. Ставим:</p><pre><code>go get -u github.com/cloudflare/cfssl/cmd/cfssl
+</code></pre><p>Проверяем установку:</p><pre><code>&gt; cfssl version
+Version: 1.3.2
+Revision: dev
+Runtime: go1.10.2
+</code></pre><p>Все ок, можно делать CA. Создаем папку для CA, переходим туда и создаем конфиг для создания ключа самого CA:</p><pre><code>{
+  &quot;CN&quot;: &quot;Test Root CA&quot;,
+  &quot;key&quot;: {
+    &quot;algo&quot;: &quot;rsa&quot;,
+    &quot;size&quot;: 2048
+  },
+  &quot;ca&quot;: {
+    &quot;expiry&quot;: &quot;87600h&quot;
+  },
+  &quot;names&quot;: [
+    {
+      &quot;C&quot;: &quot;RU&quot;,
+      &quot;L&quot;: &quot;Saint Petersburg&quot;,
+      &quot;O&quot;: &quot;Test Company&quot;,
+      &quot;OU&quot;: &quot;Internal systems unit&quot;,
+      &quot;ST&quot;: &quot;Saint Petersburg&quot;
+    }
+  ]
+}
+</code></pre><p>В данном примере мы используем ключ RSA в 2048 бит размером. CFSSL поддерживает как RSA таки ECDSA ключи. Назовем файлик csr.json. Поле expiry задает срок жизни CA. CA не может подписывать ключ на срок больший его собственной жизни. Точнее – может, но смысла в этом нет – когда срок существования цифровой подписи самого CA закончится – все созданные им цифровые подписи не будут считаться легитимными.</p><p>Сгенерируем ключ:</p><pre><code>&gt; cfssl gencert -initca csr.json | cfssljson -bare ca
+2018/12/14 19:56:56 [INFO] generating a new CA key and certificate from CSR
+2018/12/14 19:56:56 [INFO] generate received request
+2018/12/14 19:56:56 [INFO] received CSR
+2018/12/14 19:56:56 [INFO] generating key: rsa-2048
+2018/12/14 19:56:57 [INFO] encoded CSR
+2018/12/14 19:56:57 [INFO] signed certificate with serial number 594378542753634129370457275219291351654652931156
+</code></pre><p>Посмотрим в папку:</p><pre><code>&gt; tree
+.
+├── csr.json
+├── ca-key.pem
+├── ca.csr
+└── ca.pem
+
+0 directories, 4 files
+</code></pre><p>Где:</p><ul><li>ca-key.pem - приватный ключ, которым подписываются сертификаты</li><li>ca.pem - сам сертификат</li><li>ca.csr - запрос на сертификат (публичный ключ без подписи).</li></ul><p>Лично я рекомендую для общего удобства работы ключи класть в отдельную папку, ее можно, к примеру, назвать keys:</p><pre><code>mkdir keys
+mv ca-key.pem ca.csr ca.pem keys/
+</code></pre><p>Чтобы в Теперь создадим конфиг для создания клиентских ключей и сертификатов. Назовем его, например, ca.json:</p><pre><code>{
+  &quot;signing&quot;: {
+    &quot;profiles&quot;: {
+      &quot;server&quot;: {
+        &quot;expiry&quot;: &quot;17520h&quot;,
+        &quot;usages&quot;: [
+          &quot;digital signature&quot;,
+          &quot;key encipherment&quot;,
+          &quot;server auth&quot;
+        ]
+      },
+      &quot;client&quot;: {
+        &quot;expiry&quot;: &quot;8760h&quot;,
+        &quot;usages&quot;: [
+          &quot;signing&quot;,
+          &quot;client auth&quot;
+        ]
+      }
+    }
+  }
+}
+</code></pre><p>В этом примере у нас два профиля – сертификаты для сервера (со сроком жизни в 2 года) и для клиента (на год). Сертификат клиента может использоваться для авторизации клиентского подключения (например, в OpenVPN), но такой сертификат нельзя выдать серверу.</p><p>Чтобы мочь использовать конфиг для CSR (и не вводить заново страну, регион и прочее) – его нужно подправить, убрав из него секцию CA:</p><pre><code>{
+  &quot;CN&quot;: &quot;Test Root CA&quot;,
+  &quot;key&quot;: {
+    &quot;algo&quot;: &quot;rsa&quot;,
+    &quot;size&quot;: 2048
+  },
+  &quot;names&quot;: [
+    {
+      &quot;C&quot;: &quot;RU&quot;,
+      &quot;L&quot;: &quot;Saint Petersburg&quot;,
+      &quot;O&quot;: &quot;Test Company&quot;,
+      &quot;OU&quot;: &quot;Internal systems unit&quot;,
+      &quot;ST&quot;: &quot;Saint Petersburg&quot;
+    }
+  ]
+}
+</code></pre><p>Теперь сгенерируем серверный ключ:</p><pre><code>&gt; cfssl gencert -ca=keys/ca.pem \
+  -ca-key=keys/ca-key.pem \
+  -config=ca.json \
+  -profile=&quot;server&quot; \
+  -cn=&quot;test.server.local&quot; \
+  -hostname=&quot;test.server.local,test,192.168.1.1&quot; \
+  csr.json | cfssljson -bare keys/server
+
+2018/12/14 20:28:47 [INFO] generate received request
+2018/12/14 20:28:47 [INFO] received CSR
+2018/12/14 20:28:47 [INFO] generating key: rsa-2048
+2018/12/14 20:28:48 [INFO] encoded CSR
+2018/12/14 20:28:48 [INFO] signed certificate with serial number 53158698715503305792227475745544378560981646495
+</code></pre><p>Аргумент cfssljson -bare keys/server позволяет положить ключ в папку keys, и называться файлы будут с server</p><p>Посмотрим, что получилось:</p><pre><code>&gt; tree
+.
+├── ca.json
+├── csr.json
+└── keys
+    ├── ca-key.pem
+    ├── ca.csr
+    ├── ca.pem
+    ├── server-key.pem
+    ├── server.csr
+    └── server.pem
+</code></pre><p>Проверим ключ сервера:</p><pre><code>&gt; openssl x509 -text -noout -in keys/server.pem
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            09:4f:b7:ef:17:c4:b5:f5:06:f6:66:bb:0f:85:de:f0:b6:8a:3c:9f
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=Test Root CA
+        Validity
+            Not Before: Dec 14 17:24:00 2018 GMT
+            Not After : Dec 13 17:24:00 2020 GMT
+        Subject: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=test.server.local
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+</code></pre><p>Теперь создадим сертификат для клиента (скажем, для OpenVPN):</p><pre><code>&gt; cfssl gencert -ca=keys/ca.pem \
+  -ca-key=keys/ca-key.pem \
+  -config=ca.json \
+  -profile=&quot;client&quot; \
+  -cn=&quot;prudnitskiy&quot; \
+  -hostname=&quot;Paul Rudnitskiy&quot; \
+  csr.json | cfssljson -bare &quot;keys/prudnitskiy&quot;
+
+2018/12/14 20:35:56 [INFO] generate received request
+2018/12/14 20:35:56 [INFO] received CSR
+2018/12/14 20:35:56 [INFO] generating key: rsa-2048
+2018/12/14 20:35:57 [INFO] encoded CSR
+2018/12/14 20:35:57 [INFO] signed certificate with serial number 82476622684473156560886280203356252095924099426
+</code></pre><p>Проверим сертификат клиента:</p><pre><code>&gt; openssl x509 -text -noout -in keys/prudnitskiy.pem
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            0e:72:61:32:19:eb:71:30:43:ee:66:6d:8d:8c:e7:e5:bd:57:59:62
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=Test Root CA
+        Validity
+            Not Before: Dec 14 17:31:00 2018 GMT
+            Not After : Dec 14 17:31:00 2019 GMT
+        Subject: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=prudnitskiy
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+
+            [.....]
+
+            X509v3 Subject Alternative Name:
+                DNS:Paul Rudnitskiy
+</code></pre><p>Здесь видно, что у клиента сертификат на год, а у сервера (чуть выше) - на два года</p><h2 id=подпись-чужого-сертификата><div><a href=#%d0%bf%d0%be%d0%b4%d0%bf%d0%b8%d1%81%d1%8c-%d1%87%d1%83%d0%b6%d0%be%d0%b3%d0%be-%d1%81%d0%b5%d1%80%d1%82%d0%b8%d1%84%d0%b8%d0%ba%d0%b0%d1%82%d0%b0>#
+</a>Подпись чужого сертификата</div></h2><p>В примере выше мы создавали и ключ и сертификат прямо там, где работает центр сертификации. Вообще это не правильно – приватный ключ не должен покидать места своего использования. В этом примере мы создадим приватный ключ, запрос на подпись сертификата и подпишем этот запрос на другом сервере. Создаем ключ:</p><pre><code>server$ openssl genrsa -aes256 -out client.key 4096
+Generating RSA private key, 4096 bit long modulus
+...................................................++
+................................................................................................................................................................................++
+e is 65537 (0x10001)
+Enter pass phrase for client.key:
+Verifying - Enter pass phrase for client.key:
+</code></pre><p>Теперь создаем запрос на сертификат:</p><pre><code>server$ openssl req -new -key client.key -out client.csr
+Enter pass phrase for client.key:
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [AU]:RU
+State or Province Name (full name) [Some-State]:Saint Petersburg
+Locality Name (eg, city) []:Saint Petersburg
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:Test Company
+Organizational Unit Name (eg, section) []:International section
+Common Name (e.g. server FQDN or YOUR name) []:test2.ssign.local
+Email Address []:
+
+Please enter the following 'extra' attributes
+to be sent with your certificate request
+A challenge password []:
+An optional company name []:
+</code></pre><p>У нас есть приватный ключ и запрос на сертификат:</p><pre><code>server$ tree
+.
+├── client.csr
+└── client.key
+</code></pre><p>Запрос отправим на сервер и подпишем:</p><pre><code>&gt; cfssl sign -ca keys/ca.pem \
+-ca-key keys/ca-key.pem \
+-config=ca.json \
+-profile=&quot;server&quot; \
+client.csr | cfssljson -bare &quot;keys/signed&quot;
+</code></pre><p>Проверим, что получилось:</p><pre><code>&gt; openssl x509 -text -noout -in keys/signed.pem
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            06:08:a0:e6:77:a0:a3:f2:15:82:6c:8a:da:9c:9a:73:df:a4:aa:5c
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=Test Root CA
+        Validity
+            Not Before: Dec 14 17:45:00 2018 GMT
+            Not After : Dec 13 17:45:00 2020 GMT
+        Subject: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=International section, CN=test2.ssign.local
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (4096 bit)
+</code></pre><p>keys/signed.pem – это и есть наш подписанный сертификат – его можно возвращать на сервер и использовать.</p><h2 id=intermediate-center-of-authorities><div><a href=#intermediate-center-of-authorities>#
+</a>Intermediate center of authorities</div></h2><p>InterimCA - это центр сертификации, подписанный другим центром сертификации. Его можно использовать для большей безопасности или разграничения возможности подписывать разные сертификаты для разных ситуаций (например, сделать CA, который подписывает только соединение с базами данных и ничего более). Сделаем для его отдельную папку и положим туда два конфига:</p><p>l2init.json:</p><pre><code>{
+  &quot;signing&quot;: {
+    &quot;default&quot;: {
+      &quot;usages&quot;: [
+        &quot;cert sign&quot;,
+        &quot;crl sign&quot;
+      ],
+      &quot;expiry&quot;: &quot;43800h&quot;,
+      &quot;ca_constraint&quot;: {
+        &quot;is_ca&quot;: true,
+        &quot;max_path_len&quot;: 0,
+        &quot;max_path_len_zero&quot;: true
+      },
+      &quot;crl_url&quot;: &quot;https://server.com/pki/crl&quot;
+    }
+  }
+}
+</code></pre><p>В этом примере CA будет действовать 5 лет (root CA действует 10)</p><p>l2csr.json:</p><pre><code>{
+  &quot;CN&quot;: &quot;Level2 CA&quot;,
+  &quot;key&quot;: {
+    &quot;algo&quot;: &quot;ecdsa&quot;,
+    &quot;size&quot;: 384
+  },
+  &quot;names&quot;: [
+    {
+      &quot;C&quot;: &quot;RU&quot;,
+      &quot;L&quot;: &quot;Saint Petersburg&quot;,
+      &quot;O&quot;: &quot;Test Company&quot;,
+      &quot;OU&quot;: &quot;Internal systems unit&quot;,
+      &quot;ST&quot;: &quot;Saint Petersburg&quot;
+    }
+  ]
+}
+</code></pre><p>В этом примере мы используем ключ на эллиптических кривых, 384 бита</p><p>Сгенерируем ключ для L2CA:</p><pre><code>&gt; cfssl gencert -initca l2/l2csr.json | cfssljson -bare &quot;l2/l2ca&quot;
+2018/12/14 21:09:11 [INFO] generating a new CA key and certificate from CSR
+2018/12/14 21:09:11 [INFO] generate received request
+2018/12/14 21:09:11 [INFO] received CSR
+2018/12/14 21:09:11 [INFO] generating key: ecdsa-384
+2018/12/14 21:09:11 [INFO] encoded CSR
+2018/12/14 21:09:11 [INFO] signed certificate with serial number 113401202328445156746253039479389987233218778440
+</code></pre><p>Теперь подпишем его ключом Root CA:</p><pre><code>&gt; cfssl sign -ca keys/ca.pem \
+-ca-key keys/ca-key.pem \
+-config=l2/l2init.json l2/l2ca.csr | cfssljson -bare &quot;l2/l2ca&quot;
+2018/12/14 21:09:21 [INFO] signed certificate with serial number 716266849684210842961608276575977912635137621329
+</code></pre><p>Проверим:</p><pre><code>&gt; openssl x509 -text -noout -in l2/l2ca.pem
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            7d:76:84:30:b6:71:47:f6:51:0a:f1:40:4d:26:86:21:0c:da:7d:51
+    Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=Test Root CA
+        Validity
+            Not Before: Dec 14 18:04:00 2018 GMT
+            Not After : Dec 13 18:04:00 2023 GMT
+        Subject: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=Level2 CA
+</code></pre><p>Здесь хорошо видно, что ключ подписан Test Root CA (Issuer)</p><p>Теперь можно создавать ключи, подписаные L2CA - как в прошлом примере:</p><pre><code>&gt; cfssl gencert -ca=l2/l2ca.pem \
+  -ca-key=l2/l2ca-key.pem \
+  -config=ca.json \
+  -profile=&quot;server&quot; \
+  -cn=&quot;test.l2.server.local&quot; \
+  -hostname=&quot;test.l2.server.localtest,172.16.0.1&quot; \
+  l2/l2csr.json | cfssljson -bare l2/server
+</code></pre><p>Здесь мы используем ca.json из root ca (там хранятся профили подписи - время жизни и key usage), а конфигурацию CSR - уже из L2 (тип ключа, секция names).</p><p>Проверим сгенерированый сертификат:</p><pre><code>&gt; openssl x509 -text -noout -in l2/server.pem
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            30:a0:58:e2:3c:0e:f3:ec:73:64:b0:e1:25:0a:86:26:46:43:21:e2
+    Signature Algorithm: ecdsa-with-SHA384
+        Issuer: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=Level2 CA
+        Validity
+            Not Before: Dec 14 18:11:00 2018 GMT
+            Not After : Dec 13 18:11:00 2020 GMT
+        Subject: C=RU, ST=Saint Petersburg, L=Saint Petersburg, O=Test Company, OU=Internal systems unit, CN=test.l2.server.local
+</code></pre><p>Подписант – Level2CA</p><p>Создадим цепочку доверенных сертификатов. Цепочка читается “снизу вверх”, то есть в самом низу цепочки у нас находится root CA:</p><pre><code>&gt; cat l2/l2ca.pem keys/ca.pem &gt; chain.pem
+</code></pre><p>Проверим, что сертификат сервера - действительный:</p><pre><code>&gt; openssl verify -CAfile chain.pem l2/server.pem
+l2/server.pem: OK
+</code></pre><h2 id=выводы><div><a href=#%d0%b2%d1%8b%d0%b2%d0%be%d0%b4%d1%8b>#
+</a>Выводы</div></h2><p>TLS - основа современной сети. При правильной настройке TLS обеспечивает надежную и безопасное шифрование с проверкой всех участников процесса. CFSSL – простой, быстрый и удобный инструмент для запуска SSL CA. Он позволяет избежать само-подписанных сертификатов и помогает построить инфраструктуру обмена ключами для шифрованных соединений. Так, как большинство серверов работает в сети, которой по определению нельзя доверять – использовать шифрование необходимо, а благодаря CFSSL – это несложно.</p></div></article><h3 class="read-next-title noselect">Читать далее</h3><ul class="read-next-posts noselect"><li><a href=/ru/post/2018-08-02-yubikey-gpg/>Yubikey + GPG – быстрый старт</a></li></ul><div class="pagination post-pagination"><div class="left pagination-item"><a href=/ru/post/2019-07-24-wireguard/>WireGuard: перспективный VPN</a></div><div class="right pagination-item"><a href=/ru/post/2018-08-22-repmgr/>Repmgr: управление репликацией postgresql</a></div></div></main><footer class="common-footer noselect"><ul class=language-select><li>Русский</li><li><a href=/en/>English</a></li></ul><div class=common-footer-bottom><div style=display:flex;align-items:center;gap:8px>© Paul Rudnitskiy, 2025</div><div style=display:flex;align-items:center></div><div>Движок <a target=_blank rel="noopener noreferrer" href=https://gohugo.io/>Hugo</a>, тема <a target=_blank rel="noopener noreferrer" href=https://github.com/Junyi-99/hugo-theme-anubis2>Anubis2</a>.<br></div></div><p class="h-card vcard"><a href=https://prudnitskiy.pro/ class="p-name u-url url fn" rel=me>map[name:Paul Rudnitskiy]</a></p></footer></div></body></html>
