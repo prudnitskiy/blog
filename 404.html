@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>404 – Page Not Found</title>
+        <style>
+            /* Minimal, old‑browser‑friendly styling */
+            body {
+                background: #f8f4f0;
+                color: #222;
+                font-family: "Georgia", "Times New Roman", serif;
+                padding: 2em 1em;
+                margin: 0;
+                line-height: 1.6;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background: #fffcf8;
+                padding: 2em 2.5em;
+                border: 2px solid #ccc;
+            }
+            h1 {
+                font-size: 3.5em;
+                font-weight: normal;
+                color: #990000;
+                margin: 0 0 0.1em 0;
+                padding-bottom: 0.15em;
+                border-bottom: 2px solid #ddd;
+            }
+            p {
+                margin: 1em 0;
+                font-size: 1.1em;
+            }
+            a {
+                color: #660000;
+                text-decoration: underline;
+            }
+            a:hover {
+                color: #330000;
+            }
+            .footer {
+                margin-top: 2em;
+                font-size: 0.9em;
+                color: #777;
+                border-top: 1px solid #eee;
+                padding-top: 1em;
+                font-family: "Courier New", Courier, monospace;
+            }
+            #ru-link {
+                margin-top: 1.5em;
+                padding: 0.5em 0;
+                border-top: 1px dashed #ccc;
+                font-size: 1em;
+            }
+            #ru-link a {
+                font-weight: bold;
+            }
+            .ru-title {
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>404</h1>
+            <p><strong>Page not found</strong></p>
+            <p>The requested URL was not found on this server.</p>
+            <p><a href="/">← Return to the home page</a></p>
+            <div id="ru-link"></div>
+            <!-- filled only if moved page version exists -->
+            <div class="footer">[ error 404 ]</div>
+        </div>
+
+        <script>
+            (function () {
+                var SUFFIX_TO_REMOVE = " - Инфраструктурный блог";
+
+                function removeSuffix(title) {
+                    if (!title) return title;
+                    if (title.indexOf(SUFFIX_TO_REMOVE) !== -1) {
+                        return title.replace(SUFFIX_TO_REMOVE, "");
+                    }
+                    return title;
+                }
+
+                var origin = window.location.origin;
+                var path = window.location.pathname;
+                var search = window.location.search;
+                var hash = window.location.hash;
+
+                if (path.indexOf("/ru/") === 0) {
+                    return;
+                }
+
+                var strippedPath = path;
+                if (path.indexOf("/en/") === 0) {
+                    strippedPath = path.substring(4);
+                    if (strippedPath === "" || strippedPath === "/") {
+                        return;
+                    }
+                    if (strippedPath.charAt(0) !== "/") {
+                        strippedPath = "/" + strippedPath;
+                    }
+                }
+
+                var ruUrl = origin + "/ru" + strippedPath + search + hash;
+
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", ruUrl, true);
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4) {
+                        // Only if status is 200 OK
+                        if (xhr.status === 200) {
+                            // Extract title from HTML
+                            var title = "";
+                            // Use DOMParser if available (modern browsers)
+                            if (window.DOMParser) {
+                                try {
+                                    var parser = new DOMParser();
+                                    var doc = parser.parseFromString(
+                                        xhr.responseText,
+                                        "text/html",
+                                    );
+                                    var titleElem = doc.querySelector("title");
+                                    if (titleElem) {
+                                        title = titleElem.textContent.trim();
+                                    }
+                                } catch (e) {
+                                    // fallback to regex
+                                }
+                            }
+                            // Fallback: quick regex if DOMParser failed or not available
+                            if (!title) {
+                                var match = xhr.responseText.match(
+                                    /<title>([^<]*)<\/title>/i,
+                                );
+                                if (match && match[1]) {
+                                    title = match[1].trim();
+                                }
+                            }
+
+                            // If still no title, use the URL as fallback
+                            if (!title) {
+                                title = ruUrl;
+                            }
+
+                            // Display the link with title
+                            var container = document.getElementById("ru-link");
+                            if (container) {
+                                container.innerHTML =
+                                    '<p>Возможно вы искали эту страницу: <a href="' +
+                                    ruUrl +
+                                    '">' +
+                                    removeSuffix(title) +
+                                    "</a></p>";
+                            }
+                        }
+                        // If not 200, do nothing – the div stays empty
+                    }
+                };
+                xhr.send();
+            })();
+        </script>
+    </body>
+</html>

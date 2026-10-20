@@ -1,5 +1,154 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>SRE Blog</title><link>https://prudnitskiy.pro/</link><description>Recent blog posts on SRE Blog</description><generator>Hugo (https://gohugo.io)</generator><language>en-US</language><managingEditor/><webMaster/><lastBuildDate>Tue, 26 May 2026 11:00:00 Z</lastBuildDate><atom:link href="https://prudnitskiy.pro/en/index.xml" rel="self" type="application/rss+xml"/><item><title>Cleaning up terraform repos with layers</title><link>https://prudnitskiy.pro/en/post/2026-05-26-terraform-layers/</link><pubDate>Tue, 26 May 2026 11:00:00 Z</pubDate><author/><description>
-Terraform is the most popular infrastructure-as-code framework. I wasn&amp;amp;rsquo;t able to find a good source of information on Terraform&amp;amp;rsquo;s market share. The closest source is a report from 6Sense that says Terraform has 37% of the market. This market share doesn&amp;amp;rsquo;t include OpenTofu, which is a fork of Terraform. It also compares Terraform to Ansible (30%), which is a bit of a weird comparison. Anyway, Terraform has a majority of the IaC market. In most of the cloud projects you are currently working on, there will be Terraform one way or another.</description><guid isPermaLink="true">https://prudnitskiy.pro/en/post/2026-05-26-terraform-layers/</guid></item><item><title>Reasons to write in English</title><link>https://prudnitskiy.pro/en/post/2024-05-12-switching-to-english/</link><pubDate>Mon, 20 Jan 2025 20:08:00 Z</pubDate><author/><description>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>SRE Blog</title><link>https://prudnitskiy.pro/</link><description>Recent blog posts on SRE Blog</description><generator>Hugo (https://gohugo.io)</generator><language>en-US</language><managingEditor/><webMaster/><lastBuildDate>Tue, 26 May 2026 11:00:00 Z</lastBuildDate><atom:link href="https://prudnitskiy.pro/en/index.xml" rel="self" type="application/rss+xml"/><item><title>Cleaning up terraform repos with layers</title><link>https://prudnitskiy.pro/en/post/2026-05-26-terraform-layers/</link><pubDate>Tue, 26 May 2026 11:00:00 Z</pubDate><author/><description>
+Terraform is the most popular infrastructure-as-code framework. I wasn&amp;amp;rsquo;t able to find a good source of information on Terraform&amp;amp;rsquo;s market share. The closest source is a report from 6Sense that says Terraform has 37% of the market. This market share doesn&amp;amp;rsquo;t include OpenTofu, which is a fork of Terraform. It also compares Terraform to Ansible (30%), which is a bit of a weird comparison. Anyway, Terraform has a majority of the IaC market. In most of the cloud projects you are currently working on, there will be Terraform one way or another.</description><content:encoded>&lt;p&gt;Terraform is the most popular infrastructure-as-code framework. I wasn&amp;rsquo;t able to find a good source of information on Terraform&amp;rsquo;s market share. The closest source is a report from 6Sense that says Terraform has 37% of the market. This market share doesn&amp;rsquo;t include OpenTofu, which is a fork of Terraform. It also compares Terraform to Ansible (30%), which is a bit of a weird comparison. Anyway, Terraform has a majority of the IaC market. In most of the cloud projects you are currently working on, there will be Terraform one way or another.&lt;/p&gt;
+&lt;h2 id="the-problem" &gt;
+&lt;div&gt;
+&lt;a href="#the-problem"&gt;
+#
+&lt;/a&gt;
+The problem
+&lt;/div&gt;
+&lt;/h2&gt;
+&lt;p&gt;Terraform is not the most convenient tool, even if it is the most popular. One of the advantages is Terraform utilizes providers. This approach allows you to extend Terraform easily by adding new types of resources. You are still using HCL and relatively the same code to manage resources for different providers. It also allows you to transfer data from one kind of resource to another one. For example, you have an application in a Kubernetes cluster that utilizes OAuth2. To use OAuth2, you need to create an application in your OAuth2 provider (such as Okta or Azure EntraID). Then you need to pass the client ID, tenant ID, and client secret (or PKCE URL) to your application. You need to create a secret in Kubernetes so application can use those credentials to start utilizing the OAuth client. Terraform allows you to do it because it operates one large state. All variables in the code are globally visible, so you can use it for your convenience.&lt;/p&gt;
+&lt;h3 id="terraform-state" &gt;
+&lt;div&gt;
+&lt;a href="#terraform-state"&gt;
+##
+&lt;/a&gt;
+Terraform state
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Everything Terraform works with it stores in the state file (tfstate). It is an enormous JSON document that Terraform unmarshals to the Go structure in memory on start. The first problem of the state is its size. The size of the state is roughly equal to the size of the object multiplied by the amount of objects your Terraform operates. The size of the exact object is defined by the provider and, through it, by the API that contains all possible properties of the object. For example, Google is very careful with the API design; the resources only contain properties absolutely required. On the other hand, Microsoft or Oracle are not that meticulous in the API. Just have a look on &lt;a href="https://registry.terraform.io/providers/oracle/oci/latest/docs/resources/core_instance.html" target="_blank" rel="noopener noreferrer"&gt;oci_core_instance&lt;/a&gt; to see how many unclear and non-obvious the setup can be. All the properties of the object must be in the state. That causes state inflation, the more objects you have, the bigger the state will be. Large state consumes memory, because you cannot read the part of the state. You have to read the whole file to unmarshall it and place it in the memory as it is. I&amp;rsquo;ve seen infrastructures that required 24Gbs of RAM just to run &lt;code&gt;terraform plan&lt;/code&gt;. Otherwise, terraform job fails due to out-of-memory error. The bonus problem hides in the terraform reconciliation. Terraform refreshes objects in state as a part of run cycle. The more objects you have the longer it takes. Some public APIs have rate limits and other security measures to avoid DoS attacks. Some of the public APIs may be simply slow (infamous Azure Entra ID, I&amp;rsquo;m talking to you). Sometimes you have to wait more than 10 minutes to have everything in order.&lt;/p&gt;
+&lt;h3 id="blast-radius" &gt;
+&lt;div&gt;
+&lt;a href="#blast-radius"&gt;
+##
+&lt;/a&gt;
+Blast radius
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Terraform initially designed to be used by individuals, not teams. The HCL (HashiCorp Language used by Terraform to describe state you want to achieve) doesn&amp;rsquo;t have internal protection mechanisms common to normal languages. It doesn&amp;rsquo;t have proper encapsulation, all variables are global and may be re-defined or changed anywhere in the system. A small change may affect unpredictable places, causing significant infrastructure damage. Of course there is a &lt;code&gt;terraform plan&lt;/code&gt; shows you the changes terraform going to apply. However, it is easy to miss a critical change. Especially in the case of many object changes same time or if you use AI code review. People tend to trust other people&amp;rsquo;s judgement and not paying enough attention to the tool output. And the result may be catastrophic.&lt;/p&gt;
+&lt;p&gt;Terraform doesn&amp;rsquo;t perform changes by itself, it uses providers. Each provider has the configuration and performs the authentication. Of course, you must grant the provider with the permissions necessary to perform the tasks you use terraform for. By default, you have a provider per kind of resource (for example, to configure Azure or Google Cloud). Any mistake done with this provider is done with elevated credentials of the provider. It is possible to implement least privilege approach by creating multiple providers and specify the provider for a specific group of resources. However, it is not really useful &amp;ndash; people tend to use the simplest approach possible and in the end everything will be done by one privileged provider. You can&amp;rsquo;t remove default provider. You can&amp;rsquo;t prohibit something to highly-qualified people (and your colleagues, I&amp;rsquo;m sure, are highly qualified). Smart people will find their way one way or another.&lt;/p&gt;
+&lt;h3 id="bonus-track-security" &gt;
+&lt;div&gt;
+&lt;a href="#bonus-track-security"&gt;
+##
+&lt;/a&gt;
+Bonus-track: security
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Terraform was not designed to implement security. The state file contains any object terraform operates. All this data is not encrypted. Any time you generate encryption keys, pass API credentials, certificates or any kind of secret information using dependency or &lt;code&gt;data&lt;/code&gt; you save this information in state. This information is not encrypted. Any person with state access can pull any data from state by using &lt;code&gt;terraform state pull&lt;/code&gt; or just copying the file. What is worse there is no way to limit access to a specific area of the state. The operator (the terraform) requires the whole state to work with because there is no way to read the state piece by piece.&lt;/p&gt;
+&lt;h2 id="solution-layers" &gt;
+&lt;div&gt;
+&lt;a href="#solution-layers"&gt;
+#
+&lt;/a&gt;
+Solution: layers
+&lt;/div&gt;
+&lt;/h2&gt;
+&lt;p&gt;Firstly, there is no perfect, 100% working solution fits everyone and works everywhere. The layered approach is the one potential option I see interesting. I saw it in different teams invented independently so I think it is a good option to consider. The general idea is to split code in layers. Each layer represents a logic group of resources provisioning some state of the environment. The state of the layer is mostly independent and only explicit dependencies passed via &lt;code&gt;data&lt;/code&gt; or &lt;code&gt;remote_state&lt;/code&gt; terraform primitive. Those layers integrated vertically. The data passed from &amp;ldquo;top&amp;rdquo; layers to &amp;ldquo;bottom&amp;rdquo; but never in opposite or lateral direction. This setup creates a natural resource hierarchy. For example, we have resources in Google Kubernetes cluster deployed in Google Cloud project. This setup may be represented in three layers:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Layer 1 defines the project itself, its properties and billing policies.&lt;/li&gt;
+&lt;li&gt;Layer 2 represents cluster deployment, node pools and other in-project resources&lt;/li&gt;
+&lt;li&gt;Layer 3 represents resources inside of GKE cloud&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Every layer has its own specific responsibility. Any layer can use a specific set of permissions narrowed to the requirements of this specific layer. Any information passed between layers explicitly. We are using &lt;code&gt;output&lt;/code&gt; on the upper level as an outbound and &lt;code&gt;remote_state&lt;/code&gt; as an inbound for the information we pass. For multiple groups on the same level, you can use multiple folders (or separate repos) if needed. It helps with the isolation of concern and through this reduces blast radius as well as a current state size. This approach requires some mind shift, but it works quite well for big repositories with complex resource graph. This approach works best for teams because each part of the infrastructure you manage becomes mostly independent. A very important note is to avoid lateral data transfer. Any data passes only top to bottom. Without it, you can easily get a dependency loop: service A depends on service B while service B depends on service A. Terraform tracks resource graph in monorepos but for layered approach it is not possible because you are not directly passing resources between layers, only their values. This risk increases with the amount of services you manage. It will be impossible to avoid such problem in large infrastructures with thousands and thousands of resources. Layered approach gives a set of advantages:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Each layer is compact and small. It is simple to observe and fix. Compact code produces a compact plan, and any potential problem in the plan looks much more visible.&lt;/li&gt;
+&lt;li&gt;Data access management is much more&amp;hellip; Manageable as you pass data explicitly and know what and where do you pass.&lt;/li&gt;
+&lt;li&gt;Reduced resource usage and faster reconciliation thanks to the smaller code and state.&lt;/li&gt;
+&lt;li&gt;The layered design approach naturally improves code discipline. It requires careful design and coding. It reduces sloppiness with ad-hoc solutions full of &lt;code&gt;#@TODO:&lt;/code&gt; and &lt;code&gt;#@FIXMIE:&lt;/code&gt; as well as required to think of code as of module with API as a contract. It makes code more reliable.&lt;/li&gt;
+&lt;li&gt;Layered approach reduces blast radius. For the worst case possible the damage isolated to the current layer and its descendants keeping parallel and upper layers unaffected.&lt;/li&gt;
+&lt;li&gt;As any layer has its own area of responsibility, you can design explicit permissions minimized to a specific layer&amp;rsquo;s needs. This approach reduces blast radius and makes security team happy.&lt;/li&gt;
+&lt;li&gt;In fact layered approach encapsulates code in layers, creating a nearly accurate OOP with terraform, like a grown up language do. It helps to change the code in a specific layer without affecting other layers. You only need to keep the output data format compatible to previous revision. The output data format becomes public contract. It helps with the big teams with many people works with the same infrastructure. You can also update the version seamlessly by creating multiple versions of the output and change the consumer gradually. It moves infrastructure-as-a-code code to nearly enterprise coding patterns.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="in-practice" &gt;
+&lt;div&gt;
+&lt;a href="#in-practice"&gt;
+##
+&lt;/a&gt;
+In practice
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;One picture works better than a thousand words. Let&amp;rsquo;s try it in practice. We have a simple setup built of 3 layers:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Layer 0 sets project in the cloud&lt;/li&gt;
+&lt;li&gt;Layer 1 creates Kubernetes cluster in this cloud. It deploys VMs, builds LoadBalancers and disk and so on. This layer also manages OAuth credentials in the authentication provider.&lt;/li&gt;
+&lt;li&gt;Layer 2 manages resources inside of Kubernetes cluster deployed in Kubernetes. As our applications uses OAuth2 to authenticate users with SSO we need to have keyapirs from previous layer on this layer.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Honestly, it is not the best approach as Layer-1 has many roles in the same time. However, it is an example from my personal lab, and I&amp;rsquo;m the only person manages this setup so we can consider it manageable. The main reason we use layers is to simplify our life. Layers design is not a dogma, and you need to find a balance between amount of layers and complexity of data you pass from layer to another. As layers applied one-by-one, many layers will slow down the pipeline even if each layer works faster.&lt;/p&gt;
+&lt;p&gt;I use monorepo in this example, with all code placed in the same place. However, it is up to you to split it to multiple repositories. Here&amp;rsquo;s an example repository structure:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;.
+└── layer-0-project
+└── layer-1-cloud
+├── layer-2-front
+└── layer-2-k8s
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;This file structure simplifies CI/CD configuration because we need to keep pipeline dependencies in mind. It also looks more observable as for me. We create EntraID OAuth applications in layer 1 and need to pass them &amp;ldquo;downstream&amp;rdquo;. We&amp;rsquo;ll do it with output:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#c6d0f5;background-color:#303446;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-terraform" data-lang="terraform"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;locals {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; [...]
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; entra_out &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; { &lt;span style="color:#ca9ee6"&gt;for&lt;/span&gt; k, v &lt;span style="color:#ca9ee6"&gt;in&lt;/span&gt; local.entra_config &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; k =&amp;gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;root&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; v.root,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;group_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; azuread_group.entra_group[k].object_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;application_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; &lt;span style="color:#99d1db"&gt;module&lt;/span&gt;.entra_app[k].application_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;client_secret&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; &lt;span style="color:#99d1db"&gt;module&lt;/span&gt;.entra_app[k].client_secret
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;tenant_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; &lt;span style="color:#99d1db"&gt;module&lt;/span&gt;.entra_app[k].tenant_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; } }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#ca9ee6"&gt;output&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;entra_config&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; value &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; local.entra_out
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; sensitive &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#ef9f76"&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;On the layer 2 we can receive this data using &lt;code&gt;remote_state&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#c6d0f5;background-color:#303446;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-terraform" data-lang="terraform"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#ca9ee6"&gt;data&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;terraform_remote_state&amp;#34;&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;layer1&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; backend &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;azurerm&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; config &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; resource_group_name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.tf_group_name
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; storage_account_name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.tf_sa_ro
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; subscription_id &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.subscription_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; container_name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.container
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; key &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;layer1.tfstate&amp;#34;&lt;/span&gt;&lt;span style="color:#737994;font-style:italic"&gt; # state file name, same as on layer1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}&lt;span style="color:#737994;font-style:italic"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#737994;font-style:italic"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#737994;font-style:italic"&gt;# now we&amp;#39;re passing the data to K8s secret
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#ca9ee6"&gt;resource&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;kubernetes_secret_v1&amp;#34;&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;grafana-oauth2&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; metadata {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;auth-generic-oauth-secret&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; namespace &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; kubernetes_namespace_v1.gafana.metadata[&lt;span style="color:#ef9f76"&gt;0&lt;/span&gt;].name
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; wait_for_service_account_token &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#ef9f76"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;client_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt;.terraform_remote_state.layer0.outputs.entra_config[&lt;span style="color:#a6d189"&gt;&amp;#34;grafana&amp;#34;&lt;/span&gt;].application_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;client_secret&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt;.terraform_remote_state.layer0.outputs.entra_config[&lt;span style="color:#a6d189"&gt;&amp;#34;grafana&amp;#34;&lt;/span&gt;].client_secret
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;tenant_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt;.terraform_remote_state.layer0.outputs.entra_config[&lt;span style="color:#a6d189"&gt;&amp;#34;grafana&amp;#34;&lt;/span&gt;].tenant_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;In this example, we pass the data from Azure to Kubernetes without direct interaction with Azure. Layer-0 and Layer-1 doesn&amp;rsquo;t have access to Kubernetes cluster and Layer-2 doesn&amp;rsquo;t have access to Azure. Also, Layer-2 can&amp;rsquo;t pass data upstream or change anything in the state file of upstream layers. This makes upstream layers durable even in catastrophic failures on layer-2 level. It is a greatly simplified example. However, it illustrates the approach.&lt;/p&gt;
+&lt;p&gt;Here&amp;rsquo;s a bit more complicated setup:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;.
+└── layer_0_project
+├── layer_1_gke
+│   ├── layer_2_extdns
+│   ├── layer_2_observability
+│   └── layer_2_smesh
+│   └── layer_3_vault
+└── layer_1_storage
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;In this example we have Layer-0 on the enterprise level, layer-1 on a project level and layer-2 on a subsystem level. Going down with layers, you narrow the scope of your code and keep it manageable. The design of layers defines a dependency graph of resources between layers.&lt;/p&gt;
+&lt;h2 id="outcome" &gt;
+&lt;div&gt;
+&lt;a href="#outcome"&gt;
+#
+&lt;/a&gt;
+Outcome
+&lt;/div&gt;
+&lt;/h2&gt;
+&lt;p&gt;Layers approach in terraform helps to simplify code and improve security and resiliency of the code. Each layer consumes less resources in comparison to large monorepo. Separated layers are safer and more secure: your code isolated by a role and scope of the layer. It improves development experience. Each layer may be developed independently, you only need to care about data format in outputs. It also improves security as you can specify permissions required for a specific layer and avoid over-provisioned credentials, very common in IAC setups. The main disadvantage of layered approach is to how to design code accordingly. Layered approach also affects on pipeline runtime as each layer takes more time to run: it is a full-sized terraform run with modules and providers installation, plan and apply. Well-organised code is a subtle balance between complexity and functionality of the code on each layer and amounts of layers you have.&lt;/p&gt;</content:encoded><category>clouds</category><category>terraform</category><guid isPermaLink="true">https://prudnitskiy.pro/en/post/2026-05-26-terraform-layers/</guid></item><item><title>Reasons to write in English</title><link>https://prudnitskiy.pro/en/post/2024-05-12-switching-to-english/</link><pubDate>Mon, 20 Jan 2025 20:08:00 Z</pubDate><author/><description>
 I started this blog a long time ago and of course, I started to write it in my native language. I did not even think I would work with colleagues, not from my country. As I more and more work with international companies I decided to switch my blog to a bilingual model. The plan is simple:
-New articles would be published in both languages Old articles written in Russian would stay as it is Later I may translate some of them if they are not completely obsolete To keep data accessible I create rewrite rules so Google (hopefully) will not downrate my SERP position Not sure how it would work but let&amp;amp;rsquo;s see.</description><guid isPermaLink="true">https://prudnitskiy.pro/en/post/2024-05-12-switching-to-english/</guid></item><item><title>Site and author</title><link>https://prudnitskiy.pro/en/about/</link><pubDate>Mon, 01 Jan 0001 00:00:00 Z</pubDate><author/><description>
-My name is Paul Rudnitskiy and this is my personal blog. Computers always fascinating me, their flexibility and complexity, the things you can achieve with those cold lifeless pieces of silicon. I started to work as a computer technician in 2001, first as a system administrator but tried many infrastructure-related roles &amp;amp;ndash; DC technician, system administrator, network engineer, and even a part-time programmer. Later I switched to DevOps and nowadays I&amp;amp;rsquo;m doing SRE and tech lead roles. I mostly work with Unix systems, Debian Linux is the most common OS I work with. I do not work with Microsoft products and Microsoft Windows specifically. You can find my full professional biography on LinkedIN.</description><guid isPermaLink="true">https://prudnitskiy.pro/en/about/</guid></item></channel></rss>
+New articles would be published in both languages Old articles written in Russian would stay as it is Later I may translate some of them if they are not completely obsolete To keep data accessible I create rewrite rules so Google (hopefully) will not downrate my SERP position Not sure how it would work but let&amp;amp;rsquo;s see.</description><content:encoded>&lt;p&gt;I started this blog a long time ago and of course, I started to write it in my native language. I did not even think I would work with colleagues, not from my country. As I more and more work with international companies I decided to switch my blog to a bilingual model. The plan is simple:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;New articles would be published in both languages&lt;/li&gt;
+&lt;li&gt;Old articles written in Russian would stay as it is&lt;/li&gt;
+&lt;li&gt;Later I may translate some of them if they are not completely obsolete&lt;/li&gt;
+&lt;li&gt;To keep data accessible I create rewrite rules so Google (hopefully) will not downrate my SERP position&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Not sure how it would work but let&amp;rsquo;s see.&lt;/p&gt;</content:encoded><category>general</category><guid isPermaLink="true">https://prudnitskiy.pro/en/post/2024-05-12-switching-to-english/</guid></item></channel></rss>

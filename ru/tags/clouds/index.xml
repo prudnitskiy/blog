@@ -1,2 +1,142 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>Инфраструктурный блог</title><link>https://prudnitskiy.pro/</link><description>Recent blog posts on Инфраструктурный блог</description><generator>Hugo (https://gohugo.io)</generator><language>ru-ru</language><managingEditor/><webMaster/><lastBuildDate>Tue, 26 May 2026 11:00:00 Z</lastBuildDate><atom:link href="https://prudnitskiy.pro/ru/tags/clouds/index.xml" rel="self" type="application/rss+xml"/><item><title>Наводим порядок в Terraform с помощью слоев</title><link>https://prudnitskiy.pro/ru/post/2026-05-26-terraform-layers/</link><pubDate>Tue, 26 May 2026 11:00:00 Z</pubDate><author/><description>
-Terraform &amp;amp;ndash; самый популярный фреймворк для управления инфраструктурой как код. Я не нашел нормальной статистики распространенности terraform в сети, самое близкое &amp;amp;ndash; отчет от 6Sense показывает рыночную долю Terraform как 37% (и это без учета OpenTofu и ближайший конкурент там Ansible, так что сравнение спорное). В любом случае &amp;amp;ndash; превосходство Terraform на рынке IaC подавляющее. Почти всегда если у вас есть облако любого рода &amp;amp;ndash; у вас будет Terraform в той или иной форме.</description><guid isPermaLink="true">https://prudnitskiy.pro/ru/post/2026-05-26-terraform-layers/</guid></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Инфраструктурный блог</title><link>https://prudnitskiy.pro/</link><description>Recent blog posts on Инфраструктурный блог</description><generator>Hugo (https://gohugo.io)</generator><language>ru-ru</language><managingEditor/><webMaster/><lastBuildDate>Tue, 26 May 2026 11:00:00 Z</lastBuildDate><atom:link href="https://prudnitskiy.pro/ru/tags/clouds/index.xml" rel="self" type="application/rss+xml"/><item><title>Наводим порядок в Terraform с помощью слоев</title><link>https://prudnitskiy.pro/ru/post/2026-05-26-terraform-layers/</link><pubDate>Tue, 26 May 2026 11:00:00 Z</pubDate><author/><description>
+Terraform &amp;amp;ndash; самый популярный фреймворк для управления инфраструктурой как код. Я не нашел нормальной статистики распространенности terraform в сети, самое близкое &amp;amp;ndash; отчет от 6Sense показывает рыночную долю Terraform как 37% (и это без учета OpenTofu и ближайший конкурент там Ansible, так что сравнение спорное). В любом случае &amp;amp;ndash; превосходство Terraform на рынке IaC подавляющее. Почти всегда если у вас есть облако любого рода &amp;amp;ndash; у вас будет Terraform в той или иной форме.</description><content:encoded>&lt;p&gt;Terraform &amp;ndash; самый популярный фреймворк для управления инфраструктурой как код. Я не нашел нормальной статистики распространенности terraform в сети, самое близкое &amp;ndash; отчет от 6Sense показывает рыночную долю Terraform как 37% (и это без учета OpenTofu и ближайший конкурент там Ansible, так что сравнение спорное). В любом случае &amp;ndash; превосходство Terraform на рынке IaC подавляющее. Почти всегда если у вас есть облако любого рода &amp;ndash; у вас будет Terraform в той или иной форме.&lt;/p&gt;
+&lt;h2 id="проблема" &gt;
+&lt;div&gt;
+&lt;a href="#%d0%bf%d1%80%d0%be%d0%b1%d0%bb%d0%b5%d0%bc%d0%b0"&gt;
+#
+&lt;/a&gt;
+Проблема
+&lt;/div&gt;
+&lt;/h2&gt;
+&lt;p&gt;Terraform далеко не самый удобный инструмент, хотя и самый распространенный. Terraform использует провайдеры, что позволяет использовать один язык (HCL) и примерно один код (с оговорками) для управления ресурсами в разных провайдерах. В некоторых сценариях это необходимо. К примеру, у вас есть приложение в Kubernetes cluster, которое использует OAuth2 аутентификацию. Если вы используете Azure AD &amp;ndash; вам нужно создать учетные данные в Azure AD (client ID, tenant ID и Client secret если приложение не поддерживает PKCE). Потом эти данные нужно &amp;ldquo;скормить&amp;rdquo; приложению внутри Kubernetes. Terraform позволяет такой фокус, потому что state у Terraform единый и переменные внутри кода в единой области видимости. Это очень удобно, но это создает проблемы&lt;/p&gt;
+&lt;h3 id="файл-состояния" &gt;
+&lt;div&gt;
+&lt;a href="#%d1%84%d0%b0%d0%b9%d0%bb-%d1%81%d0%be%d1%81%d1%82%d0%be%d1%8f%d0%bd%d0%b8%d1%8f"&gt;
+##
+&lt;/a&gt;
+Файл состояния
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Абсолютно все, с чем работает Terraform &amp;ndash; он хранит в файле состояния (tfstate). Это огромный JSON документ, который сам Terraform прозрачно демаршализирует в структуру прямо в памяти при старте (plan/apply). И первая проблема тут &amp;ndash; размеры. Размер state &amp;ndash; это количество объектов, умноженное на размер каждого объекта. Размер конкретного объекта определяется провайдером, а точнее &amp;ndash; всеми возможными свойствами этого объекта. Эта информация зависит от API, с которым работает провайдер. Если у Google API сконструировано очень аккуратно и у каждого объекта разумный минимум свойств (только то, что необходимо для работы), то программисты MS Azure и Oracle OCI пишут очень грязно. Достаточно посмотреть на описание, к примеру, &lt;a href="https://registry.terraform.io/providers/oracle/oci/latest/docs/resources/core_instance.html" target="_blank" rel="noopener noreferrer"&gt;oci_core_instance&lt;/a&gt;, чтобы это заметить. Каждое свойство объекта должно быть вписано в state, из-за чего state стремительно пухнет, особенно когда объектов много. Большой стейт жрет память, потому что его нельзя читать &amp;ldquo;кусками&amp;rdquo; &amp;ndash; он демаршализируется только целиком. Автор видел инфраструктуры, где для запуска Terraform требовалось 24Gb RAM. Иначе объекты состояния в память просто не влезали и terraform схлопывался с OOM. Бонус проблемы &amp;ndash; сходимость. При старте terraform вычитывает состояние объектов из API (то самое state refresh). State хранит сами объекты но не верит в их свойства (хотя и хранит их). Большое количество объектов означает медленную сходимость. У API есть управление скоростью доступа (rate limit), чтобы кривые клиенты его не ломали. Активное использование API провайдера может быть наказано пессимизацией или даже временной блокировкой (особенно этим славится Azure). 10 минут на вычитку состояния &amp;ndash; совсем не новость. При старте terraform прочитает все свойства всех объектов и вам придется ждать обновления всех этих свойств. Когда на вычитку нужно 30 минут &amp;ndash; жизнь становится совсем непростой.&lt;/p&gt;
+&lt;h3 id="радиус-поражения" &gt;
+&lt;div&gt;
+&lt;a href="#%d1%80%d0%b0%d0%b4%d0%b8%d1%83%d1%81-%d0%bf%d0%be%d1%80%d0%b0%d0%b6%d0%b5%d0%bd%d0%b8%d1%8f"&gt;
+##
+&lt;/a&gt;
+Радиус поражения
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Terraform изначально придуман для отдельных людей, а не команд. HCL (язык разметки terraform, что-то среднее между разметкой и языком программирования &amp;ldquo;для бедных&amp;rdquo;) не имеет внутренних защитных механизмов, как в нормальных языках программирования. Все переменные видны всем, никаких систем контроля доступа внутри terraform кода не предусмотрено. Неудачный код может зацепить чужой в самых непредсказуемых местах. Совершенно невинная правка может выломать половину инфраструктуры. Terraform plan спасает частично, потому что не все его внимательно читают, особенно когда его много или есть ИИ-ревьюер кода. Terraform не делает запросы сам, он использует авторизацию конкретного провайдера. Логично, что провайдер должен иметь необходимые права и по умолчанию у провайдера (а значит и у terraform) прав достаточно много. Теоретически можно обезопасить изменения через создание нескольких провайдеров. У каждого провайдера будет минимум прав для решения конкретной задачи. При этом ресурсы передаются конкретным провайдерам, чтобы снизить размер проблем при ошибке. Но такой сетап очень трудно использовать, а значит &amp;ndash; люди будут естественно избегать сложностей и все задачи решать через провайдер по умолчанию. Ошибка в коде будет означать ошибку с правами провайдера. Отключить провайдер по умолчанию вы не сможете, как и запретить что-то квалифицированным инженерам. Они все равно найдут обходной путь.&lt;/p&gt;
+&lt;h3 id="бонус-безопасность" &gt;
+&lt;div&gt;
+&lt;a href="#%d0%b1%d0%be%d0%bd%d1%83%d1%81-%d0%b1%d0%b5%d0%b7%d0%be%d0%bf%d0%b0%d1%81%d0%bd%d0%be%d1%81%d1%82%d1%8c"&gt;
+##
+&lt;/a&gt;
+Бонус: безопасность
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Terraform не придуман для безопасности. TFState хранит в себе абсолютно все объекты, с которыми работает. И хранит он их в открытом виде. Если вы генерируете RSA-ключи, передаете данные доступа к API, сертификаты, любую секретную информацию &lt;strong&gt;через terraform&lt;/strong&gt;, например с помощью зависимости или data &amp;ndash; вы храните эту информацию в state. в state она не зашифрована, terraform почему-то не умеет шифровать свое состояние. Человек с доступом к terraform может вытащить весь state командой &lt;code&gt;terraform state pull&lt;/code&gt; и получит все ваши приватные данные, даже если вы запретили их вывод с помощью инструкции &lt;code&gt;sensitive&lt;/code&gt;. Организовать ограничение доступа к части state невозможно, любому оператору нужен весь state целиком, потому что частями он не читается.&lt;/p&gt;
+&lt;h2 id="решение-слои" &gt;
+&lt;div&gt;
+&lt;a href="#%d1%80%d0%b5%d1%88%d0%b5%d0%bd%d0%b8%d0%b5-%d1%81%d0%bb%d0%be%d0%b8"&gt;
+#
+&lt;/a&gt;
+Решение: слои
+&lt;/div&gt;
+&lt;/h2&gt;
+&lt;p&gt;Сразу скажу &amp;ndash; нет готового, 100% рабочего решения, которое подойдет всем и заработает идеально у всех и для всех. Концепцию слоев автор подсмотрел у своих коллег, но так же видел ее на нескольких выставках. Суть в том, что мы сегментируем код по слоям. Каждый слой &amp;ndash; это логическая группа ресурсов. При этом данные между слоями передаются через &lt;code&gt;data&lt;/code&gt; или &lt;code&gt;remote_state&lt;/code&gt;. Слои связаны &amp;ldquo;вертикально&amp;rdquo;, то есть данные передаются от &amp;ldquo;верхних&amp;rdquo; слоев основания в &amp;ldquo;нижние&amp;rdquo;. Это позволяет построить естественное дерево зависимостей между ресурсами. К примеру, у нас есть несколько ресурсов внутри google Kubernetes cluster-а. Эту инсталляцию можно разделить на три слоя:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;первый слой устанавливает свойства проекта, доступных API и политики биллинга&lt;/li&gt;
+&lt;li&gt;второй слой отвечает за развертывание GKE, NodePools и других сервисов на уровне самого Google Cloud&lt;/li&gt;
+&lt;li&gt;третий слой управляет ресурсами внутри GKE&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;У каждого слоя есть своя, строго ограниченная область ответственности. Для каждого слоя можно ограничить права доступа. Информация между слоями передается в явном виде, вам нужен output в &amp;ldquo;верхнем&amp;rdquo; слое и &amp;ldquo;remote_state&amp;rdquo; или &amp;ldquo;data&amp;rdquo; в нижнем. Если у вас есть несколько групп на одном уровне &amp;ndash; можно создать несколько отдельных репозиториев на одном слое. Это позволит изолировать объекты еще лучше (например &amp;ndash; отделить сервис аналитики от приложения, которое смотрят пользователи). Подход со слоями требует некоторой смены мышления, но если привыкнуть к концепции он очень хорошо работает, особенно для команд. Очень важно не допускать латеральной передачи данных между слоями &amp;ndash; есть риск получить петлю зависимости, когда сервис А зависит от сервиса Б, а сервис Б &amp;ndash; от сервиса А. Риск получить такую проблему растет с количеством сервисов, в больших инфраструктурах могут быть десятки тысяч сервисов и уследить за всеми невозможно. Это дает сразу кучу преимуществ:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;На уровне конкретного слоя код получается компактным. Его проще читать и его проще чинить. План тоже компактнее, а значит &amp;ndash; его легче проверять.&lt;/li&gt;
+&lt;li&gt;Легко контролировать доступ к данным, потому что все передается явно.&lt;/li&gt;
+&lt;li&gt;Меньше потребление ресурсов и лучше сходимость &amp;ndash; код компактный, данных мало.&lt;/li&gt;
+&lt;li&gt;Требование группировать код естественно требует дисциплины в дизайне и написании кода. Нужно продумывать распределение по слоям и связи. Это отучает от неряшливости в стиле &amp;ldquo;сейчас быстро напишем, потом поправим&amp;rdquo;.&lt;/li&gt;
+&lt;li&gt;Меньший радиус поражения. Даже при фатальных ошибках пострадает только текущий слой и (возможно) нижележащие слои. Все что выше или рядом по слою &amp;ndash; не пострадает&lt;/li&gt;
+&lt;li&gt;Так как у каждого слоя строго ограниченная зона ответственности &amp;ndash; каждый конкретный слой может иметь ограниченные права. Это тоже снижает шанс ошибки и радует СБ.&lt;/li&gt;
+&lt;li&gt;Фактически мы организуем нормальную инкапсуляцию кода с помощью слоев. Это позволит менять код в конкретном слое без риска зацепить остальные слои. Нужно только соблюдать формат данных, которые мы передаем &amp;ldquo;вниз&amp;rdquo;. Это помогает в больших командах, когда много людей работает над одним и тем же инфраструктурным кодом.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="практический-пример" &gt;
+&lt;div&gt;
+&lt;a href="#%d0%bf%d1%80%d0%b0%d0%ba%d1%82%d0%b8%d1%87%d0%b5%d1%81%d0%ba%d0%b8%d0%b9-%d0%bf%d1%80%d0%b8%d0%bc%d0%b5%d1%80"&gt;
+##
+&lt;/a&gt;
+Практический пример
+&lt;/div&gt;
+&lt;/h3&gt;
+&lt;p&gt;Возьмем упрощенный сетап из трех слоев:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Верхний слой отвечает за облако на уровне проекта. Он настраивает проект и биллинг.&lt;/li&gt;
+&lt;li&gt;Средний слой отвечает за развертывание Kubernetes Cluster. Кроме этого &amp;ndash; на этом слое создаются OAuth credentials.&lt;/li&gt;
+&lt;li&gt;Нижний слой настраивает ресурсы внутри кластера. Сервисы внутри кластера используют OAuth2 и им нужны ключевые пары.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Вообще это не самый удачный пример, потому что верхний слой довольно большой &amp;ndash; тут и управление проектом, и кластер и OAuth. Просто это пример из моей домашней лабы. При дизайне слоев важно соблюдать баланс &amp;ndash; большое количество слоев не упрощает а усложняет сетап. Кроме того, слои применяются по очереди (нижний слой нельзя применять до того, как применится верхний), а это замедляет пайплайн в целом (хотя и ускоряет конкретный слой). Так как в моей домашней лабе я пишу код один &amp;ndash; для меня такое разделение естественно.&lt;/p&gt;
+&lt;p&gt;Проще всего использовать для таких конфигураций монорепо, структура будет примерно такой:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;.
+└── layer-0-project
+└── layer-1-cloud
+├── layer-2-front
+└── layer-2-k8s
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Такая организация файлов упрощает CI/CD (нам нужны зависимости) и делает код наглядным. В верхнем слое у нас создаются EntraID applications и нам нужно отправить их &amp;ldquo;вниз&amp;rdquo;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#c6d0f5;background-color:#303446;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-terraform" data-lang="terraform"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;locals {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; [...]
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; entra_out &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; { &lt;span style="color:#ca9ee6"&gt;for&lt;/span&gt; k, v &lt;span style="color:#ca9ee6"&gt;in&lt;/span&gt; local.entra_config &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; k =&amp;gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;root&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; v.root,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;group_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; azuread_group.entra_group[k].object_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;application_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; &lt;span style="color:#99d1db"&gt;module&lt;/span&gt;.entra_app[k].application_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;client_secret&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; &lt;span style="color:#99d1db"&gt;module&lt;/span&gt;.entra_app[k].client_secret
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;tenant_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;:&lt;/span&gt; &lt;span style="color:#99d1db"&gt;module&lt;/span&gt;.entra_app[k].tenant_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; } }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#ca9ee6"&gt;output&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;entra_config&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; value &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; local.entra_out
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; sensitive &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#ef9f76"&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Теперь мы можем их получить на уровне &lt;code&gt;layer-2-k8s&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#c6d0f5;background-color:#303446;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-terraform" data-lang="terraform"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#ca9ee6"&gt;data&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;terraform_remote_state&amp;#34;&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;layer1&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; backend &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;azurerm&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; config &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; resource_group_name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.tf_group_name
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; storage_account_name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.tf_sa_ro
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; subscription_id &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.subscription_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; container_name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;var&lt;/span&gt;.container
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; key &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;layer0.tfstate&amp;#34;&lt;/span&gt;&lt;span style="color:#737994;font-style:italic"&gt; # state file name, такой же как на layer0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#ca9ee6"&gt;resource&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;kubernetes_secret_v1&amp;#34;&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;grafana-oauth2&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; metadata {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; name &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;auth-generic-oauth-secret&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; namespace &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; kubernetes_namespace_v1.gafana.metadata[&lt;span style="color:#ef9f76"&gt;0&lt;/span&gt;].name
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; wait_for_service_account_token &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#ef9f76"&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;client_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt;.terraform_remote_state.layer0.outputs.entra_config[&lt;span style="color:#a6d189"&gt;&amp;#34;grafana&amp;#34;&lt;/span&gt;].application_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;client_secret&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt;.terraform_remote_state.layer0.outputs.entra_config[&lt;span style="color:#a6d189"&gt;&amp;#34;grafana&amp;#34;&lt;/span&gt;].client_secret
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6d189"&gt;&amp;#34;tenant_id&amp;#34;&lt;/span&gt; &lt;span style="color:#99d1db;font-weight:bold"&gt;=&lt;/span&gt; &lt;span style="color:#99d1db"&gt;data&lt;/span&gt;.terraform_remote_state.layer0.outputs.entra_config[&lt;span style="color:#a6d189"&gt;&amp;#34;grafana&amp;#34;&lt;/span&gt;].tenant_id
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Так мы можем передавать данные из Azure в Kubernetes не взаимодействуя с Azure напрямую. У Layer-0 и Layer-1 нет доступа в K8s, а у Layer-2 нет доступа в Azure. Кроме того, Layer-2 не может ничего поменять в state-file вышестоящих слоев, даже случайно. Это сильно упрощенный пример. Конечно, распределение слоев и организация кода специфична для вашей инфраструктуры и вашей организации.&lt;/p&gt;
+&lt;p&gt;Чуть более сложный пример организации кода:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;.
+└── layer_0_project
+├── layer_1_gke
+│ ├── layer_2_extdns
+│ ├── layer_2_observability
+│ └── layer_2_smesh
+│ └── layer_3_vault
+└── layer_1_storage
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="выводы" &gt;
+&lt;div&gt;
+&lt;a href="#%d0%b2%d1%8b%d0%b2%d0%be%d0%b4%d1%8b"&gt;
+#
+&lt;/a&gt;
+Выводы
+&lt;/div&gt;
+&lt;/h2&gt;
+&lt;p&gt;Слои в terraform позволяют одновременно упростить код и улучшить безопасность и надежность. Каждый отдельный слой потребляет меньше ресурсов чем монолитный репозиторий. Кроме того, раздельные слои безопаснее, чем один большой репозиторий &amp;ndash; код изолирован по ролям. Это помогает в разработке (каждый слой может разрабатываться независимо, главное &amp;ndash; соблюдать формат данных) и безопасности (каждому слою можно дать минимум прав доступа). Основной минус &amp;ndash; нужно тщательно продумать организацию кода. Кроме этого, пайплайн всех слоев может занимать больше времени, потому что слои выполняются последовательно. Каждый слой &amp;ndash; это полноценный запуск terraform, с выгрузкой состояния, установкой модулей и провайдеров. Хорошо организованный код балансирует между сложностью и функциями конкретного слоя с одной стороны и количеством слоев с другой.&lt;/p&gt;</content:encoded><category>clouds</category><category>terraform</category><guid isPermaLink="true">https://prudnitskiy.pro/ru/post/2026-05-26-terraform-layers/</guid></item></channel></rss>
